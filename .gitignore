@@ -1,0 +1,16 @@
+# Ignore virtual environment
+venv/
+
+# Ignore IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore other files
+.credentials
+Xun-POS-test.zip
