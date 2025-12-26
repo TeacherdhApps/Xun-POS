@@ -1,5 +1,6 @@
 import base64
 import csv
+import fcntl
 import json
 import os
 import platform
@@ -11,6 +12,10 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
+try:
+    from thermal_printer import ThermalPrinter
+except ImportError:
+    ThermalPrinter = None
 
 # Prevent execution on Windows OS
 if platform.system() == "Windows":
@@ -127,18 +132,22 @@ class POS_GUI(tk.Tk):
         """Log the current sale to sales.csv."""
         timestamp = datetime.now().isoformat()
         with open("sales.csv", "a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            for barcode, item in self.sale_items.items():
-                writer.writerow(
-                    [
-                        timestamp,
-                        barcode,
-                        item["name"],
-                        item["qty"],
-                        item["price"],
-                        item["qty"] * item["price"],
-                    ]
-                )
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                writer = csv.writer(f)
+                for barcode, item in self.sale_items.items():
+                    writer.writerow(
+                        [
+                            timestamp,
+                            barcode,
+                            item["name"],
+                            item["qty"],
+                            item["price"],
+                            item["qty"] * item["price"],
+                        ]
+                    )
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
 
     def update_inventory(self):
         """Update product inventory in products.csv after a sale."""
@@ -148,44 +157,55 @@ class POS_GUI(tk.Tk):
             return
 
         try:
-            with open(filepath, mode="r", encoding="utf-8") as infile:
-                reader = csv.reader(infile)
-                lines = list(reader)
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo leer el archivo de productos: {e}")
-            return
-        
-        if not lines:
-            messagebox.showerror("Error", "El archivo de productos está vacío.")
-            return
-
-        header = lines[0]
-        product_lines = lines[1:]
-
-        # Create a dictionary for quick lookup by barcode
-        products_dict = {row[0]: row for row in product_lines}
-
-        # Update quantities
-        for barcode, item in self.sale_items.items():
-            if barcode in products_dict:
+            with open(filepath, mode="r+", newline="", encoding="utf-8") as file:
+                # Acquire an exclusive lock
+                fcntl.flock(file, fcntl.LOCK_EX)
+                
                 try:
-                    # Assuming 'inventario' is the 4th column (index 3)
-                    current_stock = int(products_dict[barcode][3])
-                    new_stock = current_stock - item["qty"]
-                    products_dict[barcode][3] = str(new_stock)
-                except (ValueError, IndexError):
-                    print(f"Warning: Could not update stock for barcode {barcode}")
-        
-        # Reconstruct the lines in the original order
-        updated_lines = [header] + [products_dict.get(row[0], row) for row in product_lines]
+                    reader = csv.reader(file)
+                    lines = list(reader)
+                    
+                    if not lines:
+                        messagebox.showerror("Error", "El archivo de productos está vacío.")
+                        return
 
-        # Write the updated data back to the CSV
-        try:
-            with open(filepath, mode="w", newline="", encoding="utf-8") as outfile:
-                writer = csv.writer(outfile)
-                writer.writerows(updated_lines)
+                    header = lines[0]
+                    product_lines = lines[1:]
+
+                    # Create a dictionary for quick lookup by barcode
+                    products_dict = {row[0]: row for row in product_lines}
+                    
+                    # Track if any changes were made
+                    changes_made = False
+
+                    # Update quantities
+                    for barcode, item in self.sale_items.items():
+                        if barcode in products_dict:
+                            try:
+                                # Assuming 'inventario' is the 4th column (index 3)
+                                current_stock = int(products_dict[barcode][3])
+                                new_stock = current_stock - item["qty"]
+                                products_dict[barcode][3] = str(new_stock)
+                                changes_made = True
+                            except (ValueError, IndexError):
+                                print(f"Warning: Could not update stock for barcode {barcode}")
+                    
+                    if changes_made:
+                        # Reconstruct the lines in the original order
+                        updated_lines = [header] + [products_dict.get(row[0], row) for row in product_lines]
+                        
+                        # Rewind and write
+                        file.seek(0)
+                        writer = csv.writer(file)
+                        writer.writerows(updated_lines)
+                        file.truncate()
+                        
+                finally:
+                    # Always unlock
+                    fcntl.flock(file, fcntl.LOCK_UN)
+                    
         except Exception as e:
-            messagebox.showerror("Error", f"No se pudo escribir en el archivo de productos: {e}")
+            messagebox.showerror("Error", f"No se pudo actualizar el inventario: {e}")
 
     def load_products(self):
         """Load products from CSV file."""
@@ -571,8 +591,12 @@ class POS_GUI(tk.Tk):
         """Log cash flow transaction to CSV."""
         timestamp = datetime.now().isoformat()
         with open("cash_flow.csv", "a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([timestamp, transaction_type, amount, concept])
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                writer = csv.writer(f)
+                writer.writerow([timestamp, transaction_type, amount, concept])
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
 
     def init_cash_flow_log(self):
         """Initialize cash_flow.csv with headers if it doesn't exist."""
@@ -994,7 +1018,40 @@ class PaymentWindow(tk.Toplevel):
         self.bind("<F1>", lambda e: self.finalize_sale())
 
     def print_ticket(self):
-        """Generate and open ticket HTML using embedded template."""
+        """Print ticket using ThermalPrinter or fallback to HTML."""
+        # Data preparation
+        business_info = {
+            'name': self.parent.settings["business_name"],
+            'address': self.parent.settings["address"],
+            'phone': self.parent.settings["phone"],
+            'cashier': self.parent.settings["cashier_name"],
+            'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        items = []
+        for item in self.parent.sale_items.values():
+            items.append({
+                'name': item["name"],
+                'qty': item["qty"],
+                'price': item["price"]
+            })
+            
+        totals = {
+            'total': self.total,
+            'paid': self.amount_paid,
+            'change': self.change_value
+        }
+
+        # Try Thermal Printer first
+        if ThermalPrinter:
+            try:
+                printer = ThermalPrinter()
+                printer.print_ticket(business_info, items, totals)
+                return # Success
+            except Exception as e:
+                print(f"Thermal printer error: {e}")
+                messagebox.showwarning("Impresora Térmica", f"Error al imprimir en térmica: {e}\nGenerando HTML...")
+
         ticket_template = self.get_ticket_template()
 
         # Prepare items HTML with proper escaping
