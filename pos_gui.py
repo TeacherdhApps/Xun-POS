@@ -288,8 +288,8 @@ class POS_GUI(tk.Tk):
         # Treeview styles
         style.configure(
             "Treeview",
-            font=("Arial", 12),
-            rowheight=20,
+            font=("Arial", 16),
+            rowheight=35,
             background=WHITE,
             fieldbackground=WHITE,
             foreground=TEXT_COLOR,
@@ -297,7 +297,7 @@ class POS_GUI(tk.Tk):
         style.map("Treeview", background=[("selected", ACCENT_COLOR)])
         style.configure(
             "Treeview.Heading",
-            font=("Arial", 12, "bold"),
+            font=("Arial", 16, "bold"),
             background=BG_COLOR,
             foreground=BLACK,
         )
@@ -457,13 +457,13 @@ class POS_GUI(tk.Tk):
         ttk.Label(
             top_frame,
             text="Buscar producto (Código o Nombre):",
-            font=("Arial", 16, "bold"),
+            font=("Arial", 20, "bold"),
         ).pack(  # Increased font
             side=tk.LEFT, padx=(0, 20)
         )
 
         self.product_combobox = ttk.Combobox(
-            top_frame, font=("Arial", 20, "bold")
+            top_frame, font=("Arial", 24, "bold")
         )  # Increased font
         self.product_combobox.pack(side=tk.LEFT, expand=True, fill=tk.X)
         self.product_combobox.bind("<Return>", self.add_product)
@@ -483,7 +483,7 @@ class POS_GUI(tk.Tk):
             tree_frame,
             columns=("barcode", "name", "qty", "price", "total"),
             show="headings",
-            height=14,
+            height=8,
         )
         self.tree.tag_configure("low_stock", background="red")
         self.tree.heading("barcode", text="Código")
@@ -515,6 +515,20 @@ class POS_GUI(tk.Tk):
         bottom_frame = ttk.Frame(parent)
         bottom_frame.pack(fill=tk.X, pady=10)
 
+        # Pack RIGHT elements first to ensure they take priority and don't get cut
+        self.total_label = ttk.Label(
+            bottom_frame, text="Total: $0.00", style="Total.TLabel"
+        )
+        self.total_label.pack(side=tk.RIGHT, padx=(10, 0))
+
+        ttk.Button(
+            bottom_frame,
+            text="F1 - Pagar",
+            command=self.show_payment_window,
+            style="Large.Accent.TButton",
+        ).pack(side=tk.RIGHT, padx=(8, 0))
+
+        # Pack LEFT elements
         ttk.Button(
             bottom_frame,
             text="Eliminar Seleccionado",
@@ -536,21 +550,13 @@ class POS_GUI(tk.Tk):
             style="Danger.TButton",
         ).pack(side=tk.LEFT, padx=(0, 10))
 
-        self.total_label = ttk.Label(
-            bottom_frame, text="Total: $0.00", style="Total.TLabel"
-        )
-        self.total_label.pack(side=tk.RIGHT, padx=(20, 0))
-
         # Status label for messages
         self.status_label = ttk.Label(bottom_frame, text="", style="Subtle.TLabel")
         self.status_label.pack(side=tk.LEFT, padx=(10, 0))
 
-        ttk.Button(
-            bottom_frame,
-            text="F1 - Pagar",
-            command=self.show_payment_window,
-            style="Large.Accent.TButton",
-        ).pack(side=tk.RIGHT)
+        # Status label for messages
+        self.status_label = ttk.Label(bottom_frame, text="", style="Subtle.TLabel")
+        self.status_label.pack(side=tk.LEFT, padx=(10, 0))
 
         # Footer with store info
         footer_frame = ttk.Frame(parent)
@@ -845,7 +851,7 @@ class PaymentWindow(tk.Toplevel):
         ttk.Label(
             main_frame,
             text=f"Total a pagar: ${self.total:.2f}",
-            font=("Arial", 32, "bold"),
+            font=("Arial", 34, "bold"),
         ).pack(pady=10)
 
         ttk.Label(main_frame, text="Monto recibido:", font=("Arial", 18, "bold")).pack(

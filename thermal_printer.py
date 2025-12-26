@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 class ThermalPrinter:
     def __init__(self, device_path="/dev/thermal_printer"):
@@ -105,5 +106,79 @@ class ThermalPrinter:
         self.set_align('center')
         self.feed(1)
         self.print_line("Gracias por su compra")
+        self.feed(3)
+        self.cut()
+
+    def print_report(self, business_info, start_date, end_date, sales_data, cash_flow_data, totals):
+        """
+        Print sales report.
+        sales_data: list of dicts {'time', 'name', 'qty', 'total'}
+        cash_flow_data: list of dicts {'time', 'type', 'amount', 'concept'}
+        totals: dict {'sales', 'entries', 'exits', 'net'}
+        """
+        self.init_printer()
+        
+        # Header
+        self.set_align('center')
+        self.set_bold(True)
+        self.print_line("REPORTE DE VENTAS")
+        self.set_bold(False)
+        self.print_line(f"{start_date} - {end_date}")
+        self.print_line(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+        self.print_line("-" * 32)
+        
+        # Sales
+        self.set_align('center')
+        self.set_bold(True)
+        self.print_line("VENTAS")
+        self.set_bold(False)
+        self.set_align('left')
+        
+        if not sales_data:
+             self.set_align('center')
+             self.print_line("No hay ventas")
+             self.set_align('left')
+        else:
+            for item in sales_data:
+                # item: {'time', 'name', 'qty', 'total'}
+                self.print_line(f"{item['name']} (x{item['qty']})")
+                # Indent time and total
+                self.print_line(f"  {item['time']}   {item['total']}")
+        
+        self.print_line("-" * 32)
+        
+        # Cash Flow
+        self.set_align('center')
+        self.set_bold(True)
+        self.print_line("MOVIMIENTOS DE CAJA")
+        self.set_bold(False)
+        self.set_align('left')
+
+        if not cash_flow_data:
+             self.set_align('center')
+             self.print_line("No hay movimientos")
+             self.set_align('left')
+        else:
+            for item in cash_flow_data:
+                # item: {'time', 'type', 'amount', 'concept'}
+                symbol = "+" if item['type'] == "entradas" else "-"
+                self.print_line(f"{symbol} {item['concept']}")
+                self.print_line(f"  {item['time']}   {item['amount']}")
+
+        self.print_line("-" * 32)
+
+        # Totals
+        self.set_align('right')
+        self.set_bold(True)
+        self.print_line(f"Total Ventas: {totals['sales']}")
+        self.print_line(f"Total Entradas: {totals['entries']}")
+        self.print_line(f"Total Salidas: {totals['exits']}")
+        self.print_line(f"TOTAL GENERAL: {totals['net']}")
+        self.set_bold(False)
+        
+        # Footer
+        self.set_align('center')
+        self.feed(1)
+        self.print_line("Gracias por usar Xun-POS")
         self.feed(3)
         self.cut()
