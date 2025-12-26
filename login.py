@@ -71,7 +71,7 @@ class UserManager:
             print(
                 f"Advertencia: {self.credentials_file} no encontrado. Creando usuario admin por defecto."
             )
-            self.create_user("admin", "admin", "admin", save_now=True)
+            self.create_user("admin", "password", "admin", save_now=True)
 
     def hash_password(self, password, salt=None):
         """Hash a password using pbkdf2_hmac."""
