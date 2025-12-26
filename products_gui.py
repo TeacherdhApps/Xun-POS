@@ -6,6 +6,7 @@ A POS application for Unix-based systems
 """
 
 import csv
+import fcntl
 import os
 import platform
 import sys
@@ -409,10 +410,24 @@ class ProductsApp(tk.Tk):
             self.tree.delete(item)
 
     def write_products_to_csv(self, products):
-        with open("products.csv", "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["barcode", "name", "price", "inventario"])
-            writer.writerows(products)
+        filepath = "products.csv"
+        # Ensure file exists first if not (though save_to_csv logic usually implies it, 
+        # but if we are creating new, we might need 'w' if it doesn't exist)
+        if not os.path.exists(filepath):
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
+                 writer = csv.writer(f)
+                 writer.writerow(["barcode", "name", "price", "inventario"])
+        
+        with open(filepath, "r+", newline="", encoding="utf-8") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                f.seek(0)
+                f.truncate()
+                writer = csv.writer(f)
+                writer.writerow(["barcode", "name", "price", "inventario"])
+                writer.writerows(products)
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
 
     def clear_form(self):
         self.barcode_entry.delete(0, tk.END)

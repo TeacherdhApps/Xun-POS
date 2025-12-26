@@ -1,12 +1,20 @@
+import base64
 import csv
+import fcntl
+import json
 import os
 import platform
 import sys
+import tempfile
 import tkinter as tk
 import webbrowser
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from tkinter import messagebox, ttk
+try:
+    from thermal_printer import ThermalPrinter
+except ImportError:
+    ThermalPrinter = None
 
 # Prevent execution on Windows OS
 if platform.system() == "Windows":
@@ -39,6 +47,7 @@ class ReportsApp(tk.Tk):
         self.selected_report_date = date.today()
         self.is_fullscreen = False  # Track fullscreen state
 
+        self.settings = self.load_settings()
         self.create_styles()
         self.init_sales_log()
         self.create_widgets()
@@ -46,6 +55,22 @@ class ReportsApp(tk.Tk):
 
         # Bind F11 for fullscreen toggle
         self.bind("<F11>", self.toggle_fullscreen)
+
+    def load_settings(self):
+        """Load settings from JSON file with default fallback."""
+        default_settings = {
+            "business_name": "Mi Negocio",
+            "address": "Chignahuapan",
+            "phone": "7971234567",
+            "cashier_name": "Dan",
+        }
+        try:
+            with open("settings.json", "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                default_settings.update(loaded)  # Merge with defaults
+                return default_settings
+        except (FileNotFoundError, json.JSONDecodeError):
+            return default_settings
 
     def init_sales_log(self):
         # Ensure sales.csv exists with headers if not present
@@ -398,52 +423,60 @@ class ReportsApp(tk.Tk):
 
         try:
             with open("sales.csv", "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    sale_date = datetime.fromisoformat(row["timestamp"]).date()
-                    if start_date <= sale_date <= end_date:
-                        sale_time = datetime.fromisoformat(row["timestamp"]).strftime(
-                            "%d/%m/%Y %H:%M:%S"
-                        )
-                        total_price = float(row["precio_total"])
-                        self.report_tree.insert(
-                            "",
-                            tk.END,
-                            values=(
-                                sale_time,
-                                row["nombre"],
-                                row["cantidad"],
-                                f"${total_price:.2f}",
-                            ),
-                        )
-                        daily_total += total_price
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        sale_date = datetime.fromisoformat(row["timestamp"]).date()
+                        if start_date <= sale_date <= end_date:
+                            sale_time = datetime.fromisoformat(row["timestamp"]).strftime(
+                                "%d/%m/%Y %H:%M:%S"
+                            )
+                            total_price = float(row["precio_total"])
+                            self.report_tree.insert(
+                                "",
+                                tk.END,
+                                values=(
+                                    sale_time,
+                                    row["nombre"],
+                                    row["cantidad"],
+                                    f"${total_price:.2f}",
+                                ),
+                            )
+                            daily_total += total_price
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
         except FileNotFoundError:
             pass  # File will be created on first sale
 
         try:
             with open("cash_flow.csv", "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    transaction_date = datetime.fromisoformat(row["timestamp"]).date()
-                    if start_date <= transaction_date <= end_date:
-                        transaction_time = datetime.fromisoformat(
-                            row["timestamp"]
-                        ).strftime("%d/%m/%Y %H:%M:%S")
-                        amount = float(row["monto"])
-                        self.cash_flow_tree.insert(
-                            "",
-                            tk.END,
-                            values=(
-                                transaction_time,
-                                row["tipo"],
-                                f"${amount:.2f}",
-                                row["concepto"],
-                            ),
-                        )
-                        if row["tipo"] == "entradas":
-                            entries_total += amount
-                        elif row["tipo"] == "salidas":
-                            exits_total += amount
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        transaction_date = datetime.fromisoformat(row["timestamp"]).date()
+                        if start_date <= transaction_date <= end_date:
+                            transaction_time = datetime.fromisoformat(
+                                row["timestamp"]
+                            ).strftime("%d/%m/%Y %H:%M:%S")
+                            amount = float(row["monto"])
+                            self.cash_flow_tree.insert(
+                                "",
+                                tk.END,
+                                values=(
+                                    transaction_time,
+                                    row["tipo"],
+                                    f"${amount:.2f}",
+                                    row["concepto"],
+                                ),
+                            )
+                            if row["tipo"] == "entradas":
+                                entries_total += amount
+                            elif row["tipo"] == "salidas":
+                                exits_total += amount
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
         except FileNotFoundError:
             pass
 
@@ -454,28 +487,73 @@ class ReportsApp(tk.Tk):
         self.net_total_label.config(text=f"${net_total:.2f}")
 
     def print_report(self):
-        """Export the current report to HTML and open it."""
-        try:
-            # Get current date range
-            start_date = self.start_cal.get_date()
-            end_date = self.end_cal.get_date()
+        """Print the current report to thermal printer or export to HTML."""
+        # Get current date range
+        start_date = self.start_cal.get_date()
+        end_date = self.end_cal.get_date()
+        
+        # Gather data for printer
+        sales_data = []
+        for item in self.report_tree.get_children():
+            values = self.report_tree.item(item)["values"]
+            time_str = values[0].split()[1] if len(values[0].split()) > 1 else values[0]
+            sales_data.append({
+                'time': time_str,
+                'name': values[1],
+                'qty': values[2],
+                'total': values[3]
+            })
 
+        cash_flow_data = []
+        for item in self.cash_flow_tree.get_children():
+            values = self.cash_flow_tree.item(item)["values"]
+            time_str = values[0].split()[1] if len(values[0].split()) > 1 else values[0]
+            cash_flow_data.append({
+                'time': time_str,
+                'type': values[1],
+                'amount': values[2],
+                'concept': values[3]
+            })
+            
+        totals = {
+            'sales': self.report_total_label.cget("text"),
+            'entries': self.entradas_total_label.cget("text"),
+            'exits': self.salidas_total_label.cget("text"),
+            'net': self.net_total_label.cget("text")
+        }
+
+        # Try printing to thermal printer first
+        if ThermalPrinter:
+            try:
+                printer = ThermalPrinter()
+                printer.print_report(
+                    self.settings,
+                    start_date.strftime('%d/%m/%Y'),
+                    end_date.strftime('%d/%m/%Y'),
+                    sales_data,
+                    cash_flow_data,
+                    totals
+                )
+                return  # Success
+            except Exception as e:
+                print(f"Thermal printer error: {e}")
+                messagebox.showwarning("Impresora Térmica", f"Error al imprimir en térmica: {e}\\nGenerando HTML...")
+
+        try:
             # Generate HTML report
             html_content = self.generate_html_report(start_date, end_date)
 
-            # Save to file
-            filename = f"reporte_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.html"
-            filepath = Path(filename)
-
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(html_content)
-
-            # Open in browser
-            webbrowser.open(filepath.absolute().as_uri())
+            # Save to temp file and open in browser
+            ticket_file = tempfile.NamedTemporaryFile(
+                delete=False, suffix=".html", mode="w", encoding="utf-8"
+            )
+            ticket_file.write(html_content)
+            ticket_file.close()
+            webbrowser.open(f"file://{os.path.realpath(ticket_file.name)}")
 
             messagebox.showinfo(
                 "Reporte Generado",
-                f"El reporte ha sido generado y guardado como:\n{filename}\n\nSe abrirá en tu navegador.",
+                "El reporte ha sido generado temporalmente y se abrirá en tu navegador.",
             )
         except Exception as e:
             messagebox.showerror(
