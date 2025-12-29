@@ -301,6 +301,7 @@ class ProductsApp(tk.Tk):
             entry.destroy()
 
         entry.bind("<Return>", save_edit)
+        entry.bind("<KP_Enter>", save_edit)
         entry.bind("<FocusOut>", save_edit)
 
     def save_to_csv(self):
