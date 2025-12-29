@@ -467,6 +467,7 @@ class POS_GUI(tk.Tk):
         )  # Increased font
         self.product_combobox.pack(side=tk.LEFT, expand=True, fill=tk.X)
         self.product_combobox.bind("<Return>", self.add_product)
+        self.product_combobox.bind("<KP_Enter>", self.add_product)
         self.product_combobox.bind("<KeyRelease>", self.show_suggestions)
         self.product_combobox.bind("<<ComboboxSelected>>", self.add_product)
 
@@ -861,6 +862,7 @@ class PaymentWindow(tk.Toplevel):
         self.amount_entry.pack(pady=5)
         self.amount_entry.focus()
         self.amount_entry.bind("<Return>", self.calculate_change)
+        self.amount_entry.bind("<KP_Enter>", self.calculate_change)
 
         self.calculate_button = ttk.Button(
             main_frame,
@@ -868,7 +870,18 @@ class PaymentWindow(tk.Toplevel):
             command=self.calculate_change,
             style="PaymentGreen.TButton",
         )
-        self.calculate_button.pack(pady=(10, 25))
+        self.calculate_button.pack(pady=(10, 10))
+
+        self.cancel_button = ttk.Button(
+            main_frame,
+            text="Esc - Cancelar",
+            command=self.destroy,
+            style="PaymentRed.TButton",
+        )
+        self.cancel_button.pack(pady=(0, 25))
+
+        # Bind Escape key
+        self.bind("<Escape>", lambda e: self.destroy())
 
         self.change_label = ttk.Label(
             main_frame, text="", style="Success.TLabel", font=("Arial", 36, "bold")
@@ -985,6 +998,8 @@ class PaymentWindow(tk.Toplevel):
             # Disable entry and hide calculate button
             self.amount_entry.config(state="disabled")
             self.calculate_button.pack_forget()
+            if hasattr(self, 'cancel_button'):
+                self.cancel_button.pack_forget()
 
             # Unbind F1 from calculate
             self.unbind("<F1>")
