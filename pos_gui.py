@@ -311,7 +311,7 @@ class POS_GUI(tk.Tk):
         )
         style.configure(
             "Header.TLabel",
-            font=("Arial", 12, "bold"),
+            font=("Arial", 28, "bold"),
             background=BG_COLOR,
             foreground=BLACK,
         )
