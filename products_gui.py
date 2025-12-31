@@ -185,6 +185,11 @@ class ProductsApp(tk.Tk):
             row=1, column=3, padx=15, pady=(0, 10), sticky="ew", ipady=8
         )
 
+        # Bind Enter keys to add_product for all entries
+        for entry in [self.barcode_entry, self.name_entry, self.price_entry, self.inventory_entry]:
+            entry.bind("<Return>", lambda e: self.add_product())
+            entry.bind("<KP_Enter>", lambda e: self.add_product())
+
         # Buttons for actions - 4 buttons distributed evenly
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=(10, 10))
