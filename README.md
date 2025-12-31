@@ -2,7 +2,7 @@
 
 Punto de venta rápido y ligero.
 
-## 🚀 Inicio Rápido
+## Inicio Rápido
 
 ### Instalación de Dependencias
 
@@ -29,18 +29,18 @@ python3 login.py
 - **Usuario:** `admin`
 - **Contraseña:** `password`
 
-⚠️ **Cambia la contraseña después del primer inicio**
+**Nota:** Cambia la contraseña después del primer inicio
 
-## 📋 Requisitos
+## Requisitos
 
 - **Sistema Operativo:** Linux (Ubuntu, Debian, Fedora, Arch, etc.)
 - **Python:** 3.7 o superior
 
 Para otras dependencias, consulta la sección de **Instalación de Dependencias**.
 
-⚠️ **Esta aplicación NO es compatible con Windows**
+**Importante:** Esta aplicación NO es compatible con Windows
 
-## ✨ Características
+## Características
 
 ### Módulos Principales
 
@@ -60,7 +60,7 @@ Para otras dependencias, consulta la sección de **Instalación de Dependencias*
 - Acceso solo a POS y Productos
 - Sin acceso a reportes, configuración ni gestión de usuarios
 
-## 📁 Estructura de Archivos
+## Estructura de Archivos
 
 ```
 Xun-POS/
@@ -77,7 +77,7 @@ Xun-POS/
 └── start              # Script de inicio
 ```
 
-## 🔧 Gestión de Usuarios (Solo Admin)
+## Gestión de Usuarios (Solo Admin)
 
 ### Agregar Usuario
 1. Iniciar sesión como admin
@@ -97,7 +97,7 @@ Xun-POS/
 3. Seleccionar usuario a eliminar
 4. Confirmar eliminación
 
-## 🎯 Uso Diario
+## Uso Diario
 
 ### Para Cajeros
 1. Iniciar sesión con credenciales de cajero
@@ -110,14 +110,14 @@ Xun-POS/
 3. Gestionar usuarios y configuración del sistema
 4. Monitorear movimientos de caja
 
-## 🔒 Seguridad
+## Seguridad
 
 - Contraseñas codificadas en Base64
 - Control de acceso por roles
 - Protección contra auto-eliminación de usuario activo
 - Protección del último usuario administrador
 
-## 📊 Archivos de Datos
+## Archivos de Datos
 
 ### products.csv
 Formato: `barcode,name,price,inventario`
@@ -128,7 +128,7 @@ Formato: `timestamp,barcode,nombre,cantidad,precio_unitario,precio_total`
 ### cash_flow.csv
 Formato: `timestamp,tipo,monto,concepto`
 
-## 🆘 Solución de Problemas
+## Solución de Problemas
 
 ### Python no encontrado
 ```bash
@@ -157,25 +157,25 @@ sudo apt install python3-tk
 sudo dnf install python3-tkinter
 ```
 
-## 📝 Notas
+## Notas
 
 - Los archivos CSV usan formato UTF-8
 - Las fechas están en formato dd/mm/yyyy
 - La interfaz está completamente en español
 - Los movimientos de caja se registran automáticamente con cada venta
 
-## 🔄 Actualización del Sistema
+## Actualización del Sistema
 
 Para mantener los datos al actualizar:
 1. Hacer backup de los archivos .csv, .credentials y settings.json
 2. Actualizar los archivos .py
 3. Restaurar los datos guardados
 
-## 📧 Soporte
+## Soporte
 
 Para problemas o preguntas, consulta el código fuente o contacta al administrador del sistema.
 
-## 📜 Licencia
+## Licencia
 
 Este proyecto está bajo la Licencia MIT. Para más detalles, vea el archivo [LICENSE](LICENSE).
 
