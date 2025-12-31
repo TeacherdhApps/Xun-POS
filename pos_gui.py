@@ -843,6 +843,19 @@ class PaymentWindow(tk.Toplevel):
             background=[("active", "#c82333"), ("disabled", "#cccccc")],
             foreground=[("disabled", "#666666")],
         )
+        # Blue button for Close
+        style.configure(
+            "PaymentBlue.TButton",
+            font=("Arial", 14, "bold"),
+            padding=12,
+            background="#007BFF",
+            foreground="white",
+        )
+        style.map(
+            "PaymentBlue.TButton",
+            background=[("active", "#0069D9"), ("disabled", "#cccccc")],
+            foreground=[("disabled", "#666666")],
+        )
 
     def create_widgets(self):
         """Create payment window widgets."""
@@ -997,12 +1010,11 @@ class PaymentWindow(tk.Toplevel):
 
             # Disable entry and hide calculate button
             self.amount_entry.config(state="disabled")
+            self.amount_entry.unbind("<Return>")
+            self.amount_entry.unbind("<KP_Enter>")
             self.calculate_button.pack_forget()
             if hasattr(self, 'cancel_button'):
                 self.cancel_button.pack_forget()
-
-            # Unbind F1 from calculate
-            self.unbind("<F1>")
 
             # Create and show the action buttons
             self.show_action_buttons()
@@ -1025,18 +1037,19 @@ class PaymentWindow(tk.Toplevel):
         )
         self.print_button.pack(pady=(15, 8))
 
-        # Create Close button (F1 - Red)
+        # Create Close button (Ent - Blue)
         self.close_button = ttk.Button(
             main_frame,
-            text="F1 - Cerrar",
+            text="Ent - Cerrar",
             command=self.finalize_sale,
-            style="PaymentRed.TButton",
+            style="PaymentBlue.TButton",
         )
         self.close_button.pack(pady=(8, 20))
 
-        # Bind F2 to print and F1 to close
+        # Bind F2 to print and Enter to close
         self.bind("<F2>", lambda e: self.print_and_finalize())
-        self.bind("<F1>", lambda e: self.finalize_sale())
+        self.bind("<Return>", lambda e: self.finalize_sale())
+        self.bind("<KP_Enter>", lambda e: self.finalize_sale())
 
     def print_ticket(self):
         """Print ticket using ThermalPrinter or fallback to HTML."""
@@ -1196,6 +1209,9 @@ class EntryExitWindow(tk.Toplevel):
 
         # Bind F1 to save transaction
         self.bind("<F1>", lambda event: self.save_transaction())
+        # Bind Enter keys to save transaction
+        self.bind("<Return>", lambda event: self.save_transaction())
+        self.bind("<KP_Enter>", lambda event: self.save_transaction())
 
     def create_styles(self):
         """Create custom styles for the window."""

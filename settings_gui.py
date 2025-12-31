@@ -171,6 +171,9 @@ class SettingsApp(tk.Tk):
 
         # Bind F12 key
         self.bind("<F12>", lambda e: self.exit_app())
+        # Bind Enter keys to save
+        self.bind("<Return>", lambda e: self.save_settings())
+        self.bind("<KP_Enter>", lambda e: self.save_settings())
 
         # Footer with store info
         footer_frame = ttk.Frame(main_frame)
