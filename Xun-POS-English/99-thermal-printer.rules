@@ -1,0 +1,6 @@
+# Generic Rule for ANY USB Thermal Printer (usblp driver)
+# Matches any device in the "usbmisc" subsystem with kernel name "lp*" (lp0, lp1, etc.)
+# Sets mode to 0666 (Read/Write for everyone) so sudo is not needed.
+# Creates a symlink "thermal_printer" to the last connected printer.
+
+SUBSYSTEM=="usbmisc", KERNEL=="lp*", MODE="0666", SYMLINK+="thermal_printer"
