@@ -198,6 +198,15 @@ class ReportsApp(tk.Tk):
         top_frame = ttk.Frame(main_frame, padding=8)
         top_frame.pack(fill=tk.X)
 
+        # @Xun-POS label (Top Right)
+        info_label = ttk.Label(
+            top_frame,
+            text="@Xun-POS",
+            font=("Arial", 8),
+            foreground="#666666",
+        )
+        info_label.pack(side=tk.RIGHT, anchor=tk.NE)
+
         self.report_date_label = ttk.Label(
             top_frame,
             text=f"Reporte para: {self.selected_report_date.strftime('%d/%m/%Y')}",
@@ -359,18 +368,6 @@ class ReportsApp(tk.Tk):
             general_col, text="$0.00", style="Net.Total.TLabel"
         )
         self.net_total_label.pack()
-
-        # Footer with store info
-        footer_frame = ttk.Frame(main_frame)
-        footer_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))
-
-        footer_label = ttk.Label(
-            footer_frame,
-            text="@Xun-POS",
-            font=("Arial", 8),
-            foreground="#666666",
-        )
-        footer_label.pack(side=tk.RIGHT, padx=5)
 
     def set_report_date(self, day):
         today = date.today()

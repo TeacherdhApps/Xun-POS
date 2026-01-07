@@ -113,6 +113,18 @@ class ProductsApp(tk.Tk):
         main_frame = ttk.Frame(self, padding="15")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
+        # Header with @Xun-POS (Top Right)
+        header_frame = ttk.Frame(main_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        info_label = ttk.Label(
+            header_frame,
+            text="@Xun-POS",
+            font=("Arial", 8),
+            foreground="#666666",
+        )
+        info_label.pack(side=tk.RIGHT)
+
         # Treeview for products
         tree_frame = ttk.Frame(main_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
@@ -228,18 +240,6 @@ class ProductsApp(tk.Tk):
 
         # Bind F12 key
         self.bind("<F12>", lambda e: self.exit_app())
-
-        # Footer with store info
-        footer_frame = ttk.Frame(main_frame)
-        footer_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))
-
-        footer_label = ttk.Label(
-            footer_frame,
-            text="@Xun-POS",
-            font=("Arial", 8),
-            foreground="#666666",
-        )
-        footer_label.pack(side=tk.RIGHT, padx=5)
 
     def on_double_click(self, event):
         region = self.tree.identify_region(event.x, event.y)
