@@ -52,7 +52,7 @@ class POS_GUI(tk.Tk):
         self.init_cash_flow_log()
         self.create_widgets()
         self.update_time()  # Start the clock
-        self.product_combobox.focus()  # Focus on product combobox
+        self.after(100, lambda: self.product_combobox.focus_set())  # Focus on product combobox
 
         # Bind F11 for fullscreen toggle
         self.bind("<F11>", self.toggle_fullscreen)
@@ -787,6 +787,8 @@ class POS_GUI(tk.Tk):
                 self.update_total()
         else:
             messagebox.showwarning("Advertencia", "Seleccione un ítem para eliminar.")
+        
+        self.product_combobox.focus_set()
 
     def update_sale_list(self):
         """Update the Treeview with current sale items."""
@@ -1220,6 +1222,11 @@ class PaymentWindow(tk.Toplevel):
         finally:
             self.destroy()
 
+    def destroy(self):
+        """Close window and return focus to parent."""
+        self.parent.product_combobox.focus_set()
+        super().destroy()
+
     def on_closing(self):
         """Prevent closing if not finalized."""
         if self.amount_paid > 0:
@@ -1253,6 +1260,11 @@ class EntryExitWindow(tk.Toplevel):
         # Bind Enter keys to save transaction
         self.bind("<Return>", lambda event: self.save_transaction())
         self.bind("<KP_Enter>", lambda event: self.save_transaction())
+
+    def destroy(self):
+        """Close window and return focus to parent."""
+        self.parent.product_combobox.focus_set()
+        super().destroy()
 
     def create_styles(self):
         """Create custom styles for the window."""
