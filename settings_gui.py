@@ -97,6 +97,16 @@ class SettingsApp(tk.Tk):
         # Title
         title_frame = ttk.Frame(self, padding="10")
         title_frame.pack(fill=tk.X)
+        
+        # @Xun-POS label (Top Right)
+        info_label = ttk.Label(
+            title_frame,
+            text="@Xun-POS",
+            font=("Arial", 8),
+            foreground="#666666",
+        )
+        info_label.pack(side=tk.RIGHT, anchor=tk.NE)
+
         ttk.Label(
             title_frame, text="Configuración de la Tienda", font=("Arial", 24, "bold")
         ).pack(pady=10)
@@ -174,20 +184,6 @@ class SettingsApp(tk.Tk):
         # Bind Enter keys to save
         self.bind("<Return>", lambda e: self.save_settings())
         self.bind("<KP_Enter>", lambda e: self.save_settings())
-
-        # Footer with store info
-        footer_frame = ttk.Frame(main_frame)
-        footer_frame.grid(
-            row=len(fields) + 1, column=0, columnspan=2, pady=(10, 0), sticky="e"
-        )
-
-        footer_label = ttk.Label(
-            footer_frame,
-            text="@Xun-POS",
-            font=("Arial", 8),
-            foreground="#666666",
-        )
-        footer_label.pack(side=tk.RIGHT, padx=5)
 
     def validate_phone(self, P):
         if P.isdigit() or P == "":

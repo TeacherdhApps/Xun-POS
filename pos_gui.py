@@ -40,7 +40,9 @@ class POS_GUI(tk.Tk):
 
         self.settings = self.load_settings()
         self.products = self.load_products()
-        self.sale_items = {}  # Dictionary to handle quantities: {barcode: {'name': str, 'price': float, 'qty': int}}
+        self.active_tickets = {1: {}, 2: {}}
+        self.current_ticket_id = 1
+        self.sale_items = self.active_tickets[1]  # Dictionary to handle quantities: {barcode: {'name': str, 'price': float, 'qty': int}}
         self.last_added_barcode = (
             None  # Track the last added product for quick re-addition
         )
@@ -128,14 +130,18 @@ class POS_GUI(tk.Tk):
                     ]
                 )
 
-    def log_sale(self):
-        """Log the current sale to sales.csv."""
+    def log_sale(self, items=None):
+        """Log the sale to sales.csv."""
+        target_items = items if items is not None else self.sale_items
+        if not target_items:
+            return
+
         timestamp = datetime.now().isoformat()
         with open("sales.csv", "a", newline="", encoding="utf-8") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 writer = csv.writer(f)
-                for barcode, item in self.sale_items.items():
+                for barcode, item in target_items.items():
                     writer.writerow(
                         [
                             timestamp,
@@ -305,7 +311,7 @@ class POS_GUI(tk.Tk):
         # Custom Label styles
         style.configure(
             "Total.TLabel",
-            font=("Arial", 36, "bold"),
+            font=("Arial", 48, "bold"),
             background=BG_COLOR,
             foreground=BLACK,
         )
@@ -357,6 +363,11 @@ class POS_GUI(tk.Tk):
         # Custom style for dark grey buttons
         style.configure("DarkGrey.TButton", foreground=WHITE, background=TEXT_COLOR)
         style.map("DarkGrey.TButton", background=[("active", SECONDARY_TEXT_COLOR)])
+
+        # Small Button style
+        style.configure("Small.TButton", font=("Arial", 10), padding=1)
+        style.configure("Small.Accent.TButton", font=("Arial", 10, "bold"), padding=1, foreground=WHITE, background=ACCENT_COLOR)
+        style.map("Small.Accent.TButton", background=[("active", "#0056b3")])
 
         # Black Exit button
         style.configure("Exit.TButton", foreground=WHITE, background="#000000")
@@ -410,6 +421,15 @@ class POS_GUI(tk.Tk):
         menu_frame = ttk.Frame(parent)
         menu_frame.pack(fill=tk.X, pady=(0, 10))
 
+        # Store info label (Top Right)
+        info_label = ttk.Label(
+            menu_frame,
+            text="@Xun-POS",
+            font=("Arial", 8),
+            foreground="#666666",
+        )
+        info_label.pack(side=tk.RIGHT, anchor=tk.NE, padx=5, pady=5)
+
         business_name_label = ttk.Label(
             menu_frame, text=self.settings["business_name"], style="Header.TLabel"
         )
@@ -417,7 +437,7 @@ class POS_GUI(tk.Tk):
 
         # Frame for date and time
         datetime_frame = ttk.Frame(menu_frame)
-        datetime_frame.pack(side=tk.LEFT, padx=10)
+        datetime_frame.pack(side=tk.LEFT, padx=5)
 
         self.date_label = ttk.Label(datetime_frame, style="DateTime.TLabel")
         self.date_label.pack(side=tk.TOP)
@@ -449,17 +469,58 @@ class POS_GUI(tk.Tk):
             button_frame, text="F12 - Salir", command=self.destroy, style="Exit.TButton"
         ).pack(side=tk.LEFT)
 
+    def switch_ticket(self, ticket_id):
+        """Switch to a specific ticket."""
+        self.current_ticket_id = ticket_id
+        self.sale_items = self.active_tickets[ticket_id]
+        self.update_sale_list()
+        self.update_total()
+        self.refresh_ticket_buttons()
+        self.product_combobox.focus()
+
+    def refresh_ticket_buttons(self):
+        """Refresh the ticket buttons in the UI."""
+        # Check if container exists (it might not be created yet during init)
+        if not hasattr(self, 'tickets_container'):
+            return
+
+        for widget in self.tickets_container.winfo_children():
+            widget.destroy()
+
+        for t_id in sorted(self.active_tickets.keys()):
+            style = "Small.Accent.TButton" if t_id == self.current_ticket_id else "Small.TButton"
+            
+            btn = ttk.Button(self.tickets_container, text=f"Recibo {t_id}", style=style,
+                             command=lambda id=t_id: self.switch_ticket(id))
+            btn.pack(side=tk.LEFT, padx=2)
+
+    def clear_sale(self):
+        """Clear the current sale."""
+        self.active_tickets[self.current_ticket_id] = {}
+        self.sale_items = self.active_tickets[self.current_ticket_id]
+        self.update_sale_list()
+        self.update_total()
+        self.product_combobox.focus()
+
+    def reset_sale(self):
+        """Reset the sale items and UI."""
+        self.active_tickets[self.current_ticket_id] = {}
+        self.sale_items = self.active_tickets[self.current_ticket_id]
+        self.update_sale_list()
+        self.update_total()
+        self.product_combobox.focus()
+
     def _create_top_frame(self, parent):
         """Create the top frame for product entry."""
         top_frame = ttk.Frame(parent)
-        top_frame.pack(fill=tk.X, pady=40)  # Increased pady
+        top_frame.pack(fill=tk.X, pady=5)  # Reduced pady
 
         ttk.Label(
             top_frame,
             text="Buscar producto (Código o Nombre):",
             font=("Arial", 20, "bold"),
         ).pack(  # Increased font
-            side=tk.LEFT, padx=(0, 20)
+            side=tk.LEFT, padx=(0, 10)
         )
 
         self.product_combobox = ttk.Combobox(
@@ -514,7 +575,16 @@ class POS_GUI(tk.Tk):
     def _create_bottom_frame(self, parent):
         """Create the bottom frame with actions and total."""
         bottom_frame = ttk.Frame(parent)
-        bottom_frame.pack(fill=tk.X, pady=10)
+        bottom_frame.pack(fill=tk.X, pady=5)
+
+        # Ticket Controls (Small buttons) - Moved to TOP
+        ticket_frame = ttk.Frame(bottom_frame)
+        ticket_frame.pack(side=tk.TOP, anchor=tk.W, padx=0, pady=0)
+        
+        self.tickets_container = ttk.Frame(ticket_frame)
+        self.tickets_container.pack(side=tk.LEFT)
+        
+        self.refresh_ticket_buttons()
 
         # Pack RIGHT elements first to ensure they take priority and don't get cut
         self.total_label = ttk.Label(
@@ -532,10 +602,10 @@ class POS_GUI(tk.Tk):
         # Pack LEFT elements
         ttk.Button(
             bottom_frame,
-            text="Eliminar Seleccionado",
+            text="Eliminar Producto",
             command=self.delete_item,
             style="DarkGrey.TButton",
-        ).pack(side=tk.LEFT, padx=(0, 10))
+        ).pack(side=tk.LEFT, padx=(0, 8))
 
         ttk.Button(
             bottom_frame,
@@ -554,22 +624,6 @@ class POS_GUI(tk.Tk):
         # Status label for messages
         self.status_label = ttk.Label(bottom_frame, text="", style="Subtle.TLabel")
         self.status_label.pack(side=tk.LEFT, padx=(10, 0))
-
-        # Status label for messages
-        self.status_label = ttk.Label(bottom_frame, text="", style="Subtle.TLabel")
-        self.status_label.pack(side=tk.LEFT, padx=(10, 0))
-
-        # Footer with store info
-        footer_frame = ttk.Frame(parent)
-        footer_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(5, 0))
-
-        footer_label = ttk.Label(
-            footer_frame,
-            text="@Xun-POS",
-            font=("Arial", 8),
-            foreground="#666666",
-        )
-        footer_label.pack(side=tk.RIGHT, padx=5)
 
     def open_settings_window(self):
         """Open settings GUI in a new process."""
@@ -705,13 +759,6 @@ class POS_GUI(tk.Tk):
         else:
             self.product_combobox.focus_set()
 
-    def clear_sale(self):
-        """Clear the current sale."""
-        self.sale_items = {}
-        self.update_sale_list()
-        self.update_total()
-        self.product_combobox.focus()
-
     def navigate_tree(self, direction):
         """Navigate treeview with arrow keys."""
         selected = self.tree.selection()
@@ -781,16 +828,10 @@ class POS_GUI(tk.Tk):
             messagebox.showwarning("Venta Vacía", "No hay productos en la venta.")
             self.product_combobox.focus()
 
-    def reset_sale(self):
-        """Reset the sale items and UI."""
-        self.sale_items = {}
-        self.update_sale_list()
-        self.update_total()
-        self.product_combobox.focus()
-
     def on_closing(self):
         """Handle window closing."""
-        self.log_sale() if self.sale_items else None
+        for items in self.active_tickets.values():
+            self.log_sale(items)
         self.destroy()
 
 
