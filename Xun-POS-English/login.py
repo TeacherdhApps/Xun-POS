@@ -278,12 +278,7 @@ class LoginSystem:
             f"{Colors.BRIGHT_WHITE}║{Colors.RESET}  {Colors.BOLD}Please enter your credentials     {Colors.RESET}                              {Colors.BRIGHT_WHITE}║{Colors.RESET}"
         )
         print(
-<<<<<<< HEAD
             f"{Colors.BRIGHT_WHITE}╚════════════════════════════════════════════════════════════════════╝{Colors.RESET}"
-=======
-            f"{Colors.BRIGHT_WHITE}╚════════════════════════════════════════════════════════════════════╝{Colors.RESET}
-"
->>>>>>> 2c96a7173eb154e82be75d41192adaa4d5f616ea
         )
 
         username = input(f"{Colors.CYAN}Username:{Colors.RESET} ").strip()
