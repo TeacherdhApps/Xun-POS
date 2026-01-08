@@ -364,13 +364,30 @@ class ReportsApp(tk.Tk):
         footer_frame = ttk.Frame(main_frame)
         footer_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))
 
-        footer_label = ttk.Label(
-            footer_frame,
-            text="@Xun-POS",
-            font=("Arial", 8),
-            foreground="#666666",
-        )
-        footer_label.pack(side=tk.RIGHT, padx=5)
+        # Logo in Footer
+        logo_path = "Xun-POS.png"
+        if os.path.exists(logo_path):
+            try:
+                self.logo_image = tk.PhotoImage(file=logo_path)
+                logo_label = ttk.Label(footer_frame, image=self.logo_image)
+                logo_label.pack(side=tk.RIGHT, padx=5)
+            except Exception as e:
+                print(f"Error loading logo: {e}")
+                footer_label = ttk.Label(
+                    footer_frame,
+                    text="@Xun-POS",
+                    font=("Arial", 8),
+                    foreground="#666666",
+                )
+                footer_label.pack(side=tk.RIGHT, padx=5)
+        else:
+            footer_label = ttk.Label(
+                footer_frame,
+                text="@Xun-POS",
+                font=("Arial", 8),
+                foreground="#666666",
+            )
+            footer_label.pack(side=tk.RIGHT, padx=5)
 
     def set_report_date(self, day):
         today = date.today()
@@ -739,11 +756,7 @@ class ReportsApp(tk.Tk):
         Thank you for using Xun-POS
     </div>
 </body>
-<<<<<<< HEAD
 </html>"""
-=======
-</html>""
->>>>>>> 2c96a7173eb154e82be75d41192adaa4d5f616ea
 
         return html
 
