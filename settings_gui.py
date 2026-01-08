@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import json
 import os
 import platform
@@ -181,13 +182,30 @@ class SettingsApp(tk.Tk):
             row=len(fields) + 1, column=0, columnspan=2, pady=(10, 0), sticky="e"
         )
 
-        footer_label = ttk.Label(
-            footer_frame,
-            text="@Xun-POS",
-            font=("Arial", 8),
-            foreground="#666666",
-        )
-        footer_label.pack(side=tk.RIGHT, padx=5)
+        # Logo in Footer
+        logo_path = "Xun-POS.png"
+        if os.path.exists(logo_path):
+            try:
+                self.logo_image = tk.PhotoImage(file=logo_path)
+                logo_label = ttk.Label(footer_frame, image=self.logo_image)
+                logo_label.pack(side=tk.RIGHT, padx=5)
+            except Exception as e:
+                print(f"Error loading logo: {e}")
+                footer_label = ttk.Label(
+                    footer_frame,
+                    text="@Xun-POS",
+                    font=("Arial", 8),
+                    foreground="#666666",
+                )
+                footer_label.pack(side=tk.RIGHT, padx=5)
+        else:
+            footer_label = ttk.Label(
+                footer_frame,
+                text="@Xun-POS",
+                font=("Arial", 8),
+                foreground="#666666",
+            )
+            footer_label.pack(side=tk.RIGHT, padx=5)
 
     def validate_phone(self, P):
         if P.isdigit() or P == "":

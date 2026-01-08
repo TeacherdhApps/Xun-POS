@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import base64
 import csv
 import fcntl
@@ -40,7 +41,9 @@ class POS_GUI(tk.Tk):
 
         self.settings = self.load_settings()
         self.products = self.load_products()
-        self.sale_items = {}  # Dictionary to handle quantities: {barcode: {'name': str, 'price': float, 'qty': int}}
+        self.active_tickets = {1: {}, 2: {}}
+        self.current_ticket_id = 1
+        self.sale_items = self.active_tickets[1]  # Dictionary to handle quantities: {barcode: {'name': str, 'price': float, 'qty': int}}
         self.last_added_barcode = (
             None  # Track the last added product for quick re-addition
         )
@@ -50,7 +53,7 @@ class POS_GUI(tk.Tk):
         self.init_cash_flow_log()
         self.create_widgets()
         self.update_time()  # Start the clock
-        self.product_combobox.focus()  # Focus on product combobox
+        self.after(100, lambda: self.product_combobox.focus_set())  # Focus on product combobox
 
         # Bind F11 for fullscreen toggle
         self.bind("<F11>", self.toggle_fullscreen)
@@ -128,14 +131,18 @@ class POS_GUI(tk.Tk):
                     ]
                 )
 
-    def log_sale(self):
-        """Log the current sale to sales.csv."""
+    def log_sale(self, items=None):
+        """Log the sale to sales.csv."""
+        target_items = items if items is not None else self.sale_items
+        if not target_items:
+            return
+
         timestamp = datetime.now().isoformat()
         with open("sales.csv", "a", newline="", encoding="utf-8") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 writer = csv.writer(f)
-                for barcode, item in self.sale_items.items():
+                for barcode, item in target_items.items():
                     writer.writerow(
                         [
                             timestamp,
@@ -224,7 +231,8 @@ class POS_GUI(tk.Tk):
                     raise ValueError("Products file empty or missing headers.")
                 for row_num, row in enumerate(reader, start=2):
                     if len(row) >= 4:  # At least barcode, name, price, inventory
-                        barcode, name, price_str, inventory_str = row[0:4]
+                        barcode = row[0].strip().lstrip("0") or "0"
+                        name, price_str, inventory_str = row[1:4]
                         try:
                             price = float(price_str)
                             inventory = int(inventory_str)
@@ -238,7 +246,8 @@ class POS_GUI(tk.Tk):
                                 f"Warning: Invalid price or inventory in row {row_num}"
                             )
                     elif len(row) >= 3:  # Fallback for rows without inventory
-                        barcode, name, price_str = row[0:3]
+                        barcode = row[0].strip().lstrip("0") or "0"
+                        name, price_str = row[1:3]
                         try:
                             price = float(price_str)
                             products[barcode] = {
@@ -358,6 +367,16 @@ class POS_GUI(tk.Tk):
         style.configure("DarkGrey.TButton", foreground=WHITE, background=TEXT_COLOR)
         style.map("DarkGrey.TButton", background=[("active", SECONDARY_TEXT_COLOR)])
 
+        # Small Button style
+        style.configure("Small.TButton", font=("Arial", 10), padding=1)
+        style.configure("Small.Accent.TButton", font=("Arial", 10, "bold"), padding=1, foreground=WHITE, background=ACCENT_COLOR)
+        style.map("Small.Accent.TButton", background=[("active", "#0056b3")])
+
+        # Small Button style
+        style.configure("Small.TButton", font=("Arial", 10), padding=1)
+        style.configure("Small.Accent.TButton", font=("Arial", 10, "bold"), padding=1, foreground=WHITE, background=ACCENT_COLOR)
+        style.map("Small.Accent.TButton", background=[("active", "#0056b3")])
+
         # Black Exit button
         style.configure("Exit.TButton", foreground=WHITE, background="#000000")
         style.map("Exit.TButton", background=[("active", "#333333")])
@@ -410,6 +429,37 @@ class POS_GUI(tk.Tk):
         menu_frame = ttk.Frame(parent)
         menu_frame.pack(fill=tk.X, pady=(0, 10))
 
+        # Store info label or logo (Top Right)
+        # Try to load logo (PNG)
+        logo_path = "Xun-POS.png"
+        if os.path.exists(logo_path):
+            try:
+                # Use tk.PhotoImage (supports PNG in Tk 8.6+)
+                self.logo_image = tk.PhotoImage(file=logo_path)
+                # Resize if possible? Tkinter PhotoImage resizing is limited (subsample only integer)
+                # Assuming the image is already sized reasonably (we resized to 100x100)
+                
+                logo_label = ttk.Label(menu_frame, image=self.logo_image)
+                logo_label.pack(side=tk.RIGHT, anchor=tk.NE, padx=5, pady=5)
+            except Exception as e:
+                print(f"Error loading logo: {e}")
+                # Fallback to text
+                info_label = ttk.Label(
+                    menu_frame,
+                    text="@Xun-POS",
+                    font=("Arial", 8),
+                    foreground="#666666",
+                )
+                info_label.pack(side=tk.RIGHT, anchor=tk.NE, padx=5, pady=5)
+        else:
+            info_label = ttk.Label(
+                menu_frame,
+                text="@Xun-POS",
+                font=("Arial", 8),
+                foreground="#666666",
+            )
+            info_label.pack(side=tk.RIGHT, anchor=tk.NE, padx=5, pady=5)
+
         business_name_label = ttk.Label(
             menu_frame, text=self.settings["business_name"], style="Header.TLabel"
         )
@@ -448,6 +498,31 @@ class POS_GUI(tk.Tk):
         ttk.Button(
             button_frame, text="F12 - Exit", command=self.destroy, style="Exit.TButton"
         ).pack(side=tk.LEFT)
+
+    def switch_ticket(self, ticket_id):
+        """Switch to a specific ticket."""
+        self.current_ticket_id = ticket_id
+        self.sale_items = self.active_tickets[ticket_id]
+        self.update_sale_list()
+        self.update_total()
+        self.refresh_ticket_buttons()
+        self.product_combobox.focus()
+
+    def refresh_ticket_buttons(self):
+        """Refresh the ticket buttons in the UI."""
+        # Check if container exists (it might not be created yet during init)
+        if not hasattr(self, 'tickets_container'):
+            return
+
+        for widget in self.tickets_container.winfo_children():
+            widget.destroy()
+
+        for t_id in sorted(self.active_tickets.keys()):
+            style = "Small.Accent.TButton" if t_id == self.current_ticket_id else "Small.TButton"
+            
+            btn = ttk.Button(self.tickets_container, text=f"Ticket {t_id}", style=style,
+                             command=lambda id=t_id: self.switch_ticket(id))
+            btn.pack(side=tk.LEFT, padx=2)
 
     def _create_top_frame(self, parent):
         """Create the top frame for product entry."""
@@ -515,6 +590,15 @@ class POS_GUI(tk.Tk):
         """Create the bottom frame with actions and total."""
         bottom_frame = ttk.Frame(parent)
         bottom_frame.pack(fill=tk.X, pady=10)
+
+        # Ticket Controls (Small buttons) - Moved to TOP of bottom frame
+        ticket_frame = ttk.Frame(bottom_frame)
+        ticket_frame.pack(side=tk.TOP, anchor=tk.W, padx=0, pady=0)
+        
+        self.tickets_container = ttk.Frame(ticket_frame)
+        self.tickets_container.pack(side=tk.LEFT)
+        
+        self.refresh_ticket_buttons()
 
         # Pack RIGHT elements first to ensure they take priority and don't get cut
         self.total_label = ttk.Label(
@@ -647,10 +731,12 @@ class POS_GUI(tk.Tk):
         # Handle if base_term is "Name (code)" from combobox selection
         if "(" in base_term and ")" in base_term:
             base_term = base_term.split("(")[-1].rstrip(")")
+        
+        normalized_term = base_term.lstrip("0") or "0"
         qty = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
 
-        product = self.products.get(base_term)
-        barcode = base_term
+        product = self.products.get(normalized_term)
+        barcode = normalized_term
         if not product:
             # Search by name (case-insensitive)
             for code, prod in self.products.items():
@@ -703,7 +789,8 @@ class POS_GUI(tk.Tk):
 
     def clear_sale(self):
         """Clear the current sale."""
-        self.sale_items = {}
+        self.active_tickets[self.current_ticket_id] = {}
+        self.sale_items = self.active_tickets[self.current_ticket_id]
         self.update_sale_list()
         self.update_total()
         self.product_combobox.focus()
@@ -779,14 +866,16 @@ class POS_GUI(tk.Tk):
 
     def reset_sale(self):
         """Reset the sale items and UI."""
-        self.sale_items = {}
+        self.active_tickets[self.current_ticket_id] = {}
+        self.sale_items = self.active_tickets[self.current_ticket_id]
         self.update_sale_list()
         self.update_total()
         self.product_combobox.focus()
 
     def on_closing(self):
         """Handle window closing."""
-        self.log_sale() if self.sale_items else None
+        for items in self.active_tickets.values():
+            self.log_sale(items)
         self.destroy()
 
 
@@ -901,6 +990,22 @@ class PaymentWindow(tk.Toplevel):
         self.print_button = None
         self.close_button = None
 
+    def print_and_finalize(self):
+        """Print ticket and finalize sale."""
+        self.print_ticket()
+        self.finalize_sale()
+
+    def finalize_sale(self):
+        """Log sale, update inventory and close."""
+        self.parent.log_sale()
+        self.parent.update_inventory()
+        self.parent.reset_sale()
+        self.destroy()
+
+    def on_closing(self):
+        """Handle window closing."""
+        self.destroy()
+
     def get_ticket_template(self):
         """Return the ticket HTML template as a string. Robust: embedded in code, no file dependency."""
         return """<!DOCTYPE html>
@@ -945,7 +1050,7 @@ class PaymentWindow(tk.Toplevel):
         Thank you for your purchase. Come back soon!
     </div>
 </body>
-</html>""
+</html>"""
 
     def calculate_change(self, event=None):
         """Calculate change and enable print/finalize if sufficient."""
@@ -1050,4 +1155,119 @@ class PaymentWindow(tk.Toplevel):
                 .replace('"', "&quot;")
             )
             subtotal = item["price"] * item["qty"]
-            items_html += f'<tr><td>{name} (x{item[
+            items_html += f'<tr><td>{name} (x{item["qty"]})</td><td style="text-align:right">${subtotal:.2f}</td></tr>'
+
+        # Prepare totals HTML
+        totals_html = (
+            f'<div class="total">Total: ${self.total:.2f}</div>'
+            f'<div class="total">Paid: ${self.amount_paid:.2f}</div>'
+            f'<div class="total">Change: ${self.change_value:.2f}</div>'
+        )
+        
+        # Prepare header info
+        header_info = (
+            f"{business_info['address']}<br>"
+            f"Tel: {business_info['phone']}<br>"
+            f"Cashier: {business_info['cashier']}<br>"
+            f"Date: {business_info['date']}"
+        )
+
+        # Replace placeholders
+        html_content = ticket_template.replace("{{business_name}}", business_info['name'])
+        html_content = html_content.replace("{{header_info}}", header_info)
+        html_content = html_content.replace("{{items}}", items_html)
+        html_content = html_content.replace("{{totals}}", totals_html)
+        html_content = html_content.replace("{{logo}}", "") # Logo handling if needed
+
+        # Write to temporary file and open
+        try:
+            temp_file = os.path.join(tempfile.gettempdir(), f"receipt_{datetime.now().strftime('%Y%m%d%H%M%S')}.html")
+            with open(temp_file, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            
+            webbrowser.open(f"file://{temp_file}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not generate receipt: {e}")
+
+
+class EntryExitWindow(tk.Toplevel):
+    """Window for recording cash entries and exits."""
+
+    def __init__(self, parent, title, transaction_type):
+        super().__init__(parent)
+        self.parent = parent
+        self.transaction_type = transaction_type
+
+        self.title(title)
+        self.geometry("400x350")
+        self.transient(parent)
+        self.grab_set()
+        self.configure(bg="#f0f0f0")
+
+        self.create_widgets(title)
+
+    def create_widgets(self, title):
+        main_frame = ttk.Frame(self, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(main_frame, text=title, font=("Arial", 20, "bold")).pack(pady=(0, 20))
+
+        ttk.Label(main_frame, text="Amount:").pack(anchor="w")
+        self.amount_entry = ttk.Entry(main_frame, font=("Arial", 14))
+        self.amount_entry.pack(fill=tk.X, pady=(0, 15))
+        self.amount_entry.focus()
+
+        ttk.Label(main_frame, text="Concept:").pack(anchor="w")
+        self.concept_entry = ttk.Entry(main_frame, font=("Arial", 14))
+        self.concept_entry.pack(fill=tk.X, pady=(0, 20))
+
+        btn_style = (
+            "Success.TButton"
+            if self.transaction_type == "entries"
+            else "Danger.TButton"
+        )
+
+        ttk.Button(main_frame, text="Save", command=self.save, style=btn_style).pack(
+            fill=tk.X, pady=5
+        )
+
+        ttk.Button(main_frame, text="Cancel", command=self.destroy).pack(
+            fill=tk.X, pady=5
+        )
+
+        # Bindings
+        self.bind("<Return>", lambda e: self.save())
+        self.bind("<KP_Enter>", lambda e: self.save())
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def save(self):
+        try:
+            amount_str = self.amount_entry.get()
+            if not amount_str:
+                return
+            amount = float(amount_str)
+            concept = self.concept_entry.get().strip()
+
+            if not concept:
+                messagebox.showerror("Error", "Concept cannot be empty.", parent=self)
+                return
+
+            self.parent.log_cash_flow(self.transaction_type, amount, concept)
+            messagebox.showinfo(
+                "Success",
+                f"{self.transaction_type.capitalize()} recorded.",
+                parent=self,
+            )
+            self.destroy()
+        except ValueError:
+            messagebox.showerror("Error", "Invalid amount.", parent=self)
+
+
+if __name__ == "__main__":
+    role = "admin"
+    if len(sys.argv) > 1:
+        role = sys.argv[1]
+    
+    app = POS_GUI(user_role=role)
+    app.mainloop()

@@ -233,13 +233,30 @@ class ProductsApp(tk.Tk):
         footer_frame = ttk.Frame(main_frame)
         footer_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))
 
-        footer_label = ttk.Label(
-            footer_frame,
-            text="@Xun-POS",
-            font=("Arial", 8),
-            foreground="#666666",
-        )
-        footer_label.pack(side=tk.RIGHT, padx=5)
+        # Logo in Footer
+        logo_path = "Xun-POS.png"
+        if os.path.exists(logo_path):
+            try:
+                self.logo_image = tk.PhotoImage(file=logo_path)
+                logo_label = ttk.Label(footer_frame, image=self.logo_image)
+                logo_label.pack(side=tk.RIGHT, padx=5)
+            except Exception as e:
+                print(f"Error loading logo: {e}")
+                footer_label = ttk.Label(
+                    footer_frame,
+                    text="@Xun-POS",
+                    font=("Arial", 8),
+                    foreground="#666666",
+                )
+                footer_label.pack(side=tk.RIGHT, padx=5)
+        else:
+            footer_label = ttk.Label(
+                footer_frame,
+                text="@Xun-POS",
+                font=("Arial", 8),
+                foreground="#666666",
+            )
+            footer_label.pack(side=tk.RIGHT, padx=5)
 
     def on_double_click(self, event):
         region = self.tree.identify_region(event.x, event.y)
@@ -265,6 +282,9 @@ class ProductsApp(tk.Tk):
             new_value = entry.get()
             current_values = list(self.tree.item(selected_iid, "values"))
             original_value = current_values[column_index]
+            
+            if column_index == 0:  # Barcode validation and normalization
+                new_value = new_value.strip().lstrip("0") or "0"
 
             if new_value == original_value:
                 entry.destroy()
@@ -353,6 +373,8 @@ class ProductsApp(tk.Tk):
                     return
                 for i, row in enumerate(reader):
                     if len(row) == 4:
+                        # Normalize barcode
+                        row[0] = row[0].strip().lstrip("0") or "0"
                         self.tree.insert("", tk.END, values=row)
                     else:
                         messagebox.showwarning(
@@ -366,7 +388,7 @@ class ProductsApp(tk.Tk):
             messagebox.showerror("Error Loading", f"Could not read file: {e}")
 
     def add_product(self):
-        barcode = self.barcode_entry.get()
+        barcode = self.barcode_entry.get().strip().lstrip("0") or "0"
         name = self.name_entry.get()
         price = self.price_entry.get()
         inventory = self.inventory_entry.get()
