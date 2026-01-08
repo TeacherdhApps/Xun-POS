@@ -230,7 +230,8 @@ class POS_GUI(tk.Tk):
                     raise ValueError("Archivo de productos vacío o sin encabezados.")
                 for row_num, row in enumerate(reader, start=2):
                     if len(row) >= 4:  # At least barcode, name, price, inventario
-                        barcode, name, price_str, inventario_str = row[0:4]
+                        barcode = row[0].strip().lstrip("0") or "0"
+                        name, price_str, inventario_str = row[1:4]
                         try:
                             price = float(price_str)
                             inventario = int(inventario_str)
@@ -244,7 +245,8 @@ class POS_GUI(tk.Tk):
                                 f"Warning: Invalid price or inventario in row {row_num}"
                             )
                     elif len(row) >= 3:  # Fallback for rows without inventario
-                        barcode, name, price_str = row[0:3]
+                        barcode = row[0].strip().lstrip("0") or "0"
+                        name, price_str = row[1:3]
                         try:
                             price = float(price_str)
                             products[barcode] = {
@@ -705,10 +707,13 @@ class POS_GUI(tk.Tk):
         # Handle if base_term is "Name (code)" from combobox selection
         if "(" in base_term and ")" in base_term:
             base_term = base_term.split("(")[-1].rstrip(")")
+        
+        # Normalize barcode by stripping leading zeros
+        normalized_term = base_term.lstrip("0") or "0"
         qty = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
 
-        product = self.products.get(base_term)
-        barcode = base_term
+        product = self.products.get(normalized_term)
+        barcode = normalized_term
         if not product:
             # Search by name (case-insensitive)
             for code, prod in self.products.items():

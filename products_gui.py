@@ -266,6 +266,9 @@ class ProductsApp(tk.Tk):
             current_values = list(self.tree.item(selected_iid, "values"))
             original_value = current_values[column_index]
 
+            if column_index == 0:  # Barcode normalization
+                new_value = new_value.strip().lstrip("0") or "0"
+
             if new_value == original_value:
                 entry.destroy()
                 return
@@ -353,6 +356,8 @@ class ProductsApp(tk.Tk):
                     return
                 for i, row in enumerate(reader):
                     if len(row) == 4:
+                        # Normalize barcode (first element in row)
+                        row[0] = row[0].strip().lstrip("0") or "0"
                         self.tree.insert("", tk.END, values=row)
                     else:
                         messagebox.showwarning(
@@ -366,10 +371,10 @@ class ProductsApp(tk.Tk):
             messagebox.showerror("Error al Cargar", f"No se pudo leer el archivo: {e}")
 
     def add_product(self):
-        barcode = self.barcode_entry.get()
-        name = self.name_entry.get()
-        price = self.price_entry.get()
-        inventory = self.inventory_entry.get()
+        barcode = self.barcode_entry.get().strip().lstrip("0") or "0"
+        name = self.name_entry.get().strip()
+        price = self.price_entry.get().strip()
+        inventory = self.inventory_entry.get().strip()
 
         if not all([barcode, name, price]):
             messagebox.showerror(
