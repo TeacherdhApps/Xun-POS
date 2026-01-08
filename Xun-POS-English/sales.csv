@@ -1,0 +1,5 @@
+timestamp,barcode,name,quantity,unit_price,total_price
+<<<<<<< HEAD
+2026-01-02T21:26:47.537599,1234,PRODUCT 1,2,10.0,20.0
+=======
+>>>>>>> 2c96a7173eb154e82be75d41192adaa4d5f616ea
