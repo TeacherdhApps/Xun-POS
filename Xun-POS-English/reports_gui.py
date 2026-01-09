@@ -204,6 +204,15 @@ class ReportsApp(tk.Tk):
         top_frame = ttk.Frame(main_frame, padding=8)
         top_frame.pack(fill=tk.X)
 
+        # Header Info Label
+        info_label = ttk.Label(
+            top_frame,
+            text="@Xun-POS",
+            font=("Arial", 8),
+            foreground="#666666",
+        )
+        info_label.pack(side=tk.RIGHT, anchor=tk.NE)
+
         self.report_date_label = ttk.Label(
             top_frame,
             text=f"Report for: {self.selected_report_date.strftime('%Y-%m-%d')}",
@@ -365,35 +374,6 @@ class ReportsApp(tk.Tk):
             general_col, text="$0.00", style="Net.Total.TLabel"
         )
         self.net_total_label.pack()
-
-        # Footer with store info
-        footer_frame = ttk.Frame(main_frame)
-        footer_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))
-
-        # Logo in Footer
-        logo_path = os.path.join(self.base_dir, "Xun-POS.png")
-        if os.path.exists(logo_path):
-            try:
-                self.logo_image = tk.PhotoImage(file=logo_path)
-                logo_label = ttk.Label(footer_frame, image=self.logo_image)
-                logo_label.pack(side=tk.RIGHT, padx=5)
-            except Exception as e:
-                print(f"Error loading logo: {e}")
-                footer_label = ttk.Label(
-                    footer_frame,
-                    text="@Xun-POS",
-                    font=("Arial", 8),
-                    foreground="#666666",
-                )
-                footer_label.pack(side=tk.RIGHT, padx=5)
-        else:
-            footer_label = ttk.Label(
-                footer_frame,
-                text="@Xun-POS",
-                font=("Arial", 8),
-                foreground="#666666",
-            )
-            footer_label.pack(side=tk.RIGHT, padx=5)
 
     def set_report_date(self, day):
         today = date.today()
