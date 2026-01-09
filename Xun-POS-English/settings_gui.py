@@ -23,8 +23,11 @@ class SettingsApp(tk.Tk):
         super().__init__()
         self.title("Store Settings")
         self.geometry("800x600")
-        self.settings_file = "settings.json"
         self.is_fullscreen = False  # Track fullscreen state
+        
+        # Base directory for absolute paths
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.settings_file = os.path.join(self.base_dir, "settings.json")
 
         self.create_styles()
         self.create_widgets()
@@ -183,7 +186,7 @@ class SettingsApp(tk.Tk):
         )
 
         # Logo in Footer
-        logo_path = "Xun-POS.png"
+        logo_path = os.path.join(self.base_dir, "Xun-POS.png")
         if os.path.exists(logo_path):
             try:
                 self.logo_image = tk.PhotoImage(file=logo_path)

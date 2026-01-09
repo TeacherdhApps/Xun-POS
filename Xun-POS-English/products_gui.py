@@ -31,6 +31,9 @@ class ProductsApp(tk.Tk):
         self.title("Product Management - Double-click to edit")
         self.geometry("1400x720")
         self.is_fullscreen = False
+        
+        # Base directory for absolute paths
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
         # Data Management
         self.all_products = []  # List of dictionaries: {'barcode':, 'name':, 'price':, 'inventory':}
@@ -285,7 +288,7 @@ class ProductsApp(tk.Tk):
 
     def load_data_into_memory(self):
         """Read CSV and store in self.all_products."""
-        filepath = "products.csv"
+        filepath = os.path.join(self.base_dir, "products.csv")
         self.all_products = []
         
         if not os.path.exists(filepath):
@@ -541,7 +544,7 @@ class ProductsApp(tk.Tk):
             return
 
         try:
-            filepath = "products.csv"
+            filepath = os.path.join(self.base_dir, "products.csv")
             # Prepare rows
             rows = []
             for p in self.all_products:
