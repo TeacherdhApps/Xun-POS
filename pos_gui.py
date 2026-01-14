@@ -596,7 +596,7 @@ class POS_GUI(tk.Tk):
 
         ttk.Button(
             bottom_frame,
-            text="F1 - Pagar",
+            text="F1 - Cobrar",
             command=self.show_payment_window,
             style="Large.Accent.TButton",
         ).pack(side=tk.RIGHT, padx=(8, 0))

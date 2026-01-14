@@ -43,7 +43,7 @@ class ReportsApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Reportes de Ventas")
-        self.geometry("1020x620")
+        self.geometry("960x650")
         self.selected_report_date = date.today()
         self.is_fullscreen = False  # Track fullscreen state
 
