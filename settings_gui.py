@@ -23,8 +23,11 @@ class SettingsApp(tk.Tk):
         super().__init__()
         self.title("Store Settings")
         self.geometry("800x600")
-        self.settings_file = "settings.json"
         self.is_fullscreen = False  # Track fullscreen state
+        
+        # Base directory for absolute paths
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.settings_file = os.path.join(self.base_dir, "settings.json")
 
         self.create_styles()
         self.create_widgets()
@@ -98,9 +101,19 @@ class SettingsApp(tk.Tk):
         # Title
         title_frame = ttk.Frame(self, padding="10")
         title_frame.pack(fill=tk.X)
+        
+        # Header Info Label
+        info_label = ttk.Label(
+            title_frame,
+            text="@Xun-POS",
+            font=("Arial", 8),
+            foreground="#666666",
+        )
+        info_label.pack(side=tk.RIGHT, anchor=tk.NE)
+
         ttk.Label(
             title_frame, text="Store Settings", font=("Arial", 24, "bold")
-        ).pack(pady=10)
+        ).pack(side=tk.LEFT, padx=10, pady=10)
 
         main_frame = ttk.Frame(self, padding="30")
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -175,37 +188,6 @@ class SettingsApp(tk.Tk):
         # Bind Enter keys to save
         self.bind("<Return>", lambda e: self.save_settings())
         self.bind("<KP_Enter>", lambda e: self.save_settings())
-
-        # Footer with store info
-        footer_frame = ttk.Frame(main_frame)
-        footer_frame.grid(
-            row=len(fields) + 1, column=0, columnspan=2, pady=(10, 0), sticky="e"
-        )
-
-        # Logo in Footer
-        logo_path = "Xun-POS.png"
-        if os.path.exists(logo_path):
-            try:
-                self.logo_image = tk.PhotoImage(file=logo_path)
-                logo_label = ttk.Label(footer_frame, image=self.logo_image)
-                logo_label.pack(side=tk.RIGHT, padx=5)
-            except Exception as e:
-                print(f"Error loading logo: {e}")
-                footer_label = ttk.Label(
-                    footer_frame,
-                    text="@Xun-POS",
-                    font=("Arial", 8),
-                    foreground="#666666",
-                )
-                footer_label.pack(side=tk.RIGHT, padx=5)
-        else:
-            footer_label = ttk.Label(
-                footer_frame,
-                text="@Xun-POS",
-                font=("Arial", 8),
-                foreground="#666666",
-            )
-            footer_label.pack(side=tk.RIGHT, padx=5)
 
     def validate_phone(self, P):
         if P.isdigit() or P == "":

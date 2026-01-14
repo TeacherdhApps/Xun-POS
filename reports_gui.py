@@ -47,6 +47,9 @@ class ReportsApp(tk.Tk):
         self.geometry("1020x620")
         self.selected_report_date = date.today()
         self.is_fullscreen = False  # Track fullscreen state
+        
+        # Base directory for absolute paths
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
         self.settings = self.load_settings()
         self.create_styles()
@@ -66,7 +69,8 @@ class ReportsApp(tk.Tk):
             "cashier_name": "Cashier",
         }
         try:
-            with open("settings.json", "r", encoding="utf-8") as f:
+            settings_path = os.path.join(self.base_dir, "settings.json")
+            with open(settings_path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
                 default_settings.update(loaded)  # Merge with defaults
                 return default_settings
@@ -75,8 +79,9 @@ class ReportsApp(tk.Tk):
 
     def init_sales_log(self):
         # Ensure sales.csv exists with headers if not present
-        if not os.path.exists("sales.csv"):
-            with open("sales.csv", "w", newline="", encoding="utf-8") as f:
+        filepath = os.path.join(self.base_dir, "sales.csv")
+        if not os.path.exists(filepath):
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(
                     [
@@ -198,6 +203,15 @@ class ReportsApp(tk.Tk):
 
         top_frame = ttk.Frame(main_frame, padding=8)
         top_frame.pack(fill=tk.X)
+
+        # Header Info Label
+        info_label = ttk.Label(
+            top_frame,
+            text="@Xun-POS",
+            font=("Arial", 8),
+            foreground="#666666",
+        )
+        info_label.pack(side=tk.RIGHT, anchor=tk.NE)
 
         self.report_date_label = ttk.Label(
             top_frame,
@@ -361,35 +375,6 @@ class ReportsApp(tk.Tk):
         )
         self.net_total_label.pack()
 
-        # Footer with store info
-        footer_frame = ttk.Frame(main_frame)
-        footer_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))
-
-        # Logo in Footer
-        logo_path = "Xun-POS.png"
-        if os.path.exists(logo_path):
-            try:
-                self.logo_image = tk.PhotoImage(file=logo_path)
-                logo_label = ttk.Label(footer_frame, image=self.logo_image)
-                logo_label.pack(side=tk.RIGHT, padx=5)
-            except Exception as e:
-                print(f"Error loading logo: {e}")
-                footer_label = ttk.Label(
-                    footer_frame,
-                    text="@Xun-POS",
-                    font=("Arial", 8),
-                    foreground="#666666",
-                )
-                footer_label.pack(side=tk.RIGHT, padx=5)
-        else:
-            footer_label = ttk.Label(
-                footer_frame,
-                text="@Xun-POS",
-                font=("Arial", 8),
-                foreground="#666666",
-            )
-            footer_label.pack(side=tk.RIGHT, padx=5)
-
     def set_report_date(self, day):
         today = date.today()
         if day == "today":
@@ -440,7 +425,8 @@ class ReportsApp(tk.Tk):
         exits_total = 0.0
 
         try:
-            with open("sales.csv", "r", encoding="utf-8") as f:
+            sales_path = os.path.join(self.base_dir, "sales.csv")
+            with open(sales_path, "r", encoding="utf-8") as f:
                 fcntl.flock(f, fcntl.LOCK_SH)
                 try:
                     reader = csv.DictReader(f)
@@ -469,7 +455,8 @@ class ReportsApp(tk.Tk):
             pass  # File will be created on first sale
 
         try:
-            with open("cash_flow.csv", "r", encoding="utf-8") as f:
+            cash_flow_path = os.path.join(self.base_dir, "cash_flow.csv")
+            with open(cash_flow_path, "r", encoding="utf-8") as f:
                 fcntl.flock(f, fcntl.LOCK_SH)
                 try:
                     reader = csv.DictReader(f)
