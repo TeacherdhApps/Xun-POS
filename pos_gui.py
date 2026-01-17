@@ -549,7 +549,6 @@ class POS_GUI(tk.Tk):
             show="headings",
             height=8,
         )
-        self.tree.tag_configure("low_stock", background="red")
         self.tree.heading("barcode", text="Código")
         self.tree.heading("name", text="Producto")
         self.tree.heading("qty", text="Cantidad")
@@ -805,8 +804,6 @@ class POS_GUI(tk.Tk):
         for barcode, item in self.sale_items.items():
             total_price = item["qty"] * item["price"]
             tags = (barcode,)
-            if self.products.get(barcode, {}).get("inventario", 0) <= 5:
-                tags = (barcode, "low_stock")
             self.tree.insert(
                 "",
                 tk.END,
