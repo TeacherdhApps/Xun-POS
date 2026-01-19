@@ -49,11 +49,11 @@ class Colors:
 # Prevent execution on Windows OS
 if platform.system() == "Windows":
     print("=" * 60)
-    print("ERROR: This application is not compatible with Windows")
+    print("ERROR: Esta aplicación no es compatible con Windows")
     print("=" * 60)
-    print("\nThis POS system is designed exclusively for Unix systems")
-    print("(Linux, macOS, BSD, etc.) and cannot run on Windows.")
-    print("\nPlease use a Linux or macOS system to run this application.")
+    print("\nEste sistema POS está diseñado exclusivamente para sistemas Unix")
+    print("(Linux, macOS, BSD, etc.) y no puede ejecutarse en Windows.")
+    print("\nPor favor, utilice un sistema Linux o macOS para ejecutar esta aplicación.")
     print("=" * 60)
     sys.exit(1)
 
@@ -69,7 +69,7 @@ class UserManager:
         """Ensure the credentials file exists."""
         if not os.path.exists(self.credentials_file):
             print(
-                f"Warning: {self.credentials_file} not found. Creating default admin user."
+                f"Advertencia: {self.credentials_file} no encontrado. Creando usuario admin por defecto."
             )
             self.create_user("admin", "password", "admin", save_now=True)
 
@@ -139,7 +139,7 @@ class UserManager:
             if self.verify_password(stored_password, password):
                 # Check if migration from legacy format is needed
                 if "$" not in stored_password:
-                    print(f"Migrating password for user '{username}' to secure format...")
+                    print(f"Migrando contraseña para usuario '{username}' a formato seguro...")
                     new_hash = self.hash_password(password)
                     users[username]["password"] = new_hash
                     self.save_users(users)
@@ -151,10 +151,10 @@ class UserManager:
         """Create a new user."""
         users = self.load_users()
         if username in users:
-            return False, "User already exists."
+            return False, "El usuario ya existe."
 
         if role not in ["admin", "cashier"]:
-            return False, "Invalid role. Must be 'admin' or 'cashier'."
+            return False, "Rol inválido. Debe ser 'admin' o 'cashier'."
 
         # Hash the password before saving
         hashed_password = self.hash_password(password)
@@ -167,33 +167,33 @@ class UserManager:
             # but usually this method is called when we want to persist.
             self.save_users(users)
             
-        return True, "User created successfully."
+        return True, "Usuario creado exitosamente."
 
     def delete_user(self, username):
         """Delete a user."""
         users = self.load_users()
         if username not in users:
-            return False, "User not found."
+            return False, "Usuario no encontrado."
 
         if (
             username == "admin"
             and len([u for u in users if users[u]["role"] == "admin"]) == 1
         ):
-            return False, "Cannot delete the last admin user."
+            return False, "No se puede eliminar el último usuario administrador."
 
         del users[username]
         self.save_users(users)
-        return True, "User deleted successfully."
+        return True, "Usuario eliminado exitosamente."
 
     def change_password(self, username, new_password):
         """Change a user's password."""
         users = self.load_users()
         if username not in users:
-            return False, "User not found."
+            return False, "Usuario no encontrado."
 
         users[username]["password"] = self.hash_password(new_password)
         self.save_users(users)
-        return True, "Password changed successfully."
+        return True, "Contraseña cambiada exitosamente."
 
     def list_users(self):
         """List all users."""
@@ -268,42 +268,42 @@ class LoginSystem:
         print(f"{Colors.BRIGHT_WHITE}{'Xun-POS':^80}{Colors.RESET}")
         print("─" * 80)
         print(f"{Colors.RESET}")
-        print(f"{Colors.WHITE}{'Fast, lightweight, Linux-native POS.'.center(80)}{Colors.RESET}")
+        print(f"{Colors.WHITE}{'POS gratuito, rápido, ligero y para Linux.'.center(80)}{Colors.RESET}")
         print(f"{Colors.RESET}")
 
         print(
             f"\n{Colors.BRIGHT_WHITE}╔════════════════════════════════════════════════════════════════════╗{Colors.RESET}"
         )
         print(
-            f"{Colors.BRIGHT_WHITE}║{Colors.RESET}  {Colors.BOLD}Please enter your credentials     {Colors.RESET}                              {Colors.BRIGHT_WHITE}║{Colors.RESET}"
+            f"{Colors.BRIGHT_WHITE}║{Colors.RESET}  {Colors.BOLD}Por favor ingrese sus credenciales{Colors.RESET}                              {Colors.BRIGHT_WHITE}║{Colors.RESET}"
         )
         print(
             f"{Colors.BRIGHT_WHITE}╚════════════════════════════════════════════════════════════════════╝{Colors.RESET}"
         )
 
-        username = input(f"{Colors.CYAN}Username:{Colors.RESET} ").strip()
-        password = getpass.getpass(f"{Colors.CYAN}Password:{Colors.RESET} ")
+        username = input(f"{Colors.CYAN}Usuario:{Colors.RESET} ").strip()
+        password = getpass.getpass(f"{Colors.CYAN}Contraseña:{Colors.RESET} ")
 
         role = self.user_manager.authenticate(username, password)
 
         if role:
             self.current_user = username
             self.current_role = role
-            role_display = "Administrator" if role == "admin" else "Cashier"
+            role_display = "Administrador" if role == "admin" else "Cajero"
             print(
-                f"\n{Colors.BG_GREEN}{Colors.BOLD} SUCCESS {Colors.RESET} {Colors.GREEN}Login successful!{Colors.RESET}"
+                f"\n{Colors.BG_GREEN}{Colors.BOLD} ÉXITO {Colors.RESET} {Colors.GREEN}¡Inicio de sesión exitoso!{Colors.RESET}"
             )
             print(
-                f"{Colors.BRIGHT_WHITE}Welcome, {Colors.BOLD}{Colors.CYAN}{username}{Colors.RESET} {Colors.BRIGHT_BLACK}({role_display}){Colors.RESET}"
+                f"{Colors.BRIGHT_WHITE}Bienvenido, {Colors.BOLD}{Colors.CYAN}{username}{Colors.RESET} {Colors.BRIGHT_BLACK}({role_display}){Colors.RESET}"
             )
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return True
         else:
             print(
-                f"\n{Colors.BG_RED}{Colors.BOLD} ERROR {Colors.RESET} {Colors.RED}Invalid username or password.{Colors.RESET}"
+                f"\n{Colors.BG_RED}{Colors.BOLD} ERROR {Colors.RESET} {Colors.RED}Usuario o contraseña inválidos.{Colors.RESET}"
             )
             input(
-                f"\n{Colors.YELLOW}Press Enter to try again...{Colors.RESET}"
+                f"\n{Colors.YELLOW}Presione Enter para intentar de nuevo...{Colors.RESET}"
             )
             return False
 
@@ -314,28 +314,28 @@ class LoginSystem:
 
             print(f"\n{Colors.BRIGHT_BLACK}┌{'─' * 68}┐{Colors.RESET}")
             print(
-                f"{Colors.BRIGHT_BLACK}│{Colors.RESET} {Colors.BOLD}Active Session:{Colors.RESET} {Colors.CYAN}{self.current_user}{Colors.RESET} {Colors.BRIGHT_BLACK}(Administrator){Colors.RESET}                    {Colors.BRIGHT_BLACK}│{Colors.RESET}"
+                f"{Colors.BRIGHT_BLACK}│{Colors.RESET} {Colors.BOLD}Sesión Activa:{Colors.RESET} {Colors.CYAN}{self.current_user}{Colors.RESET} {Colors.BRIGHT_BLACK}(Administrador){Colors.RESET}                    {Colors.BRIGHT_BLACK}│{Colors.RESET}"
             )
             print(f"{Colors.BRIGHT_BLACK}└{'─' * 68}┘{Colors.RESET}")
 
-            self.print_section("POS OPERATIONS")
-            self.print_menu_item("1", "Point of Sale", "")
-            self.print_menu_item("2", "Products", "")
-            self.print_menu_item("3", "Reports", "")
-            self.print_menu_item("4", "Settings", "")
+            self.print_section("OPERACIONES POS")
+            self.print_menu_item("1", "Punto de Venta", "")
+            self.print_menu_item("2", "Productos", "")
+            self.print_menu_item("3", "Reportes", "")
+            self.print_menu_item("4", "Configuración", "")
 
-            self.print_section("USER MANAGEMENT")
-            self.print_menu_item("5", "Add New User", "")
-            self.print_menu_item("6", "Delete User", "")
-            self.print_menu_item("7", "Change Password", "")
-            self.print_menu_item("8", "List All Users", "")
+            self.print_section("GESTIÓN DE USUARIOS")
+            self.print_menu_item("5", "Agregar Nuevo Usuario", "")
+            self.print_menu_item("6", "Eliminar Usuario", "")
+            self.print_menu_item("7", "Cambiar Contraseña", "")
+            self.print_menu_item("8", "Listar Usuarios", "")
 
-            self.print_section("SESSION")
-            self.print_menu_item("9", "Logout", "")
-            self.print_menu_item("0", "Exit", "")
+            self.print_section("SESIÓN")
+            self.print_menu_item("9", "Cerrar Sesión", "")
+            self.print_menu_item("0", "Salir", "")
 
             choice = input(
-                f"\n{Colors.BOLD}{Colors.GREEN}>{Colors.RESET} {Colors.WHITE}Enter your choice:{Colors.RESET} "
+                f"\n{Colors.BOLD}{Colors.GREEN}>{Colors.RESET} {Colors.WHITE}Ingrese su opción:{Colors.RESET} "
             ).strip()
 
             if choice == "1":
@@ -355,18 +355,18 @@ class LoginSystem:
             elif choice == "8":
                 self.list_users_menu()
             elif choice == "9":
-                print(f"\n{Colors.GREEN}Logged out successfully.{Colors.RESET}")
+                print(f"\n{Colors.GREEN}Sesión cerrada exitosamente.{Colors.RESET}")
                 input(
-                    f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}"
+                    f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}"
                 )
                 return
             elif choice == "0":
-                print(f"\n{Colors.CYAN}Goodbye!{Colors.RESET}")
+                print(f"\n{Colors.CYAN}¡Adiós!{Colors.RESET}")
                 sys.exit(0)
             else:
-                print(f"\n{Colors.RED}Invalid option.{Colors.RESET}")
+                print(f"\n{Colors.RED}Opción inválida.{Colors.RESET}")
                 input(
-                    f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}"
+                    f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}"
                 )
 
     def cashier_menu(self):
@@ -376,20 +376,20 @@ class LoginSystem:
 
             print(f"\n{Colors.BRIGHT_BLACK}┌{'─' * 68}┐{Colors.RESET}")
             print(
-                f"{Colors.BRIGHT_BLACK}│{Colors.RESET} {Colors.BOLD}Active Session:{Colors.RESET} {Colors.CYAN}{self.current_user}{Colors.RESET} {Colors.BRIGHT_BLACK}(Cashier){Colors.RESET}                            {Colors.BRIGHT_BLACK}│{Colors.RESET}"
+                f"{Colors.BRIGHT_BLACK}│{Colors.RESET} {Colors.BOLD}Sesión Activa:{Colors.RESET} {Colors.CYAN}{self.current_user}{Colors.RESET} {Colors.BRIGHT_BLACK}(Cajero){Colors.RESET}                            {Colors.BRIGHT_BLACK}│{Colors.RESET}"
             )
             print(f"{Colors.BRIGHT_BLACK}└{'─' * 68}┘{Colors.RESET}")
 
-            self.print_section("AVAILABLE OPERATIONS")
-            self.print_menu_item("1", "Point of Sale", "")
-            self.print_menu_item("2", "Products", "")
+            self.print_section("OPERACIONES DISPONIBLES")
+            self.print_menu_item("1", "Punto de Venta", "")
+            self.print_menu_item("2", "Productos", "")
 
-            self.print_section("SESSION")
-            self.print_menu_item("3", "Logout", "")
-            self.print_menu_item("0", "Exit", "")
+            self.print_section("SESIÓN")
+            self.print_menu_item("3", "Cerrar Sesión", "")
+            self.print_menu_item("0", "Salir", "")
 
             choice = input(
-                f"\n{Colors.BOLD}{Colors.GREEN}>{Colors.RESET} {Colors.WHITE}Enter your choice:{Colors.RESET} "
+                f"\n{Colors.BOLD}{Colors.GREEN}>{Colors.RESET} {Colors.WHITE}Ingrese su opción:{Colors.RESET} "
             ).strip()
 
             if choice == "1":
@@ -397,78 +397,78 @@ class LoginSystem:
             elif choice == "2":
                 self.run_python_app("products_gui.py")
             elif choice == "3":
-                print(f"\n{Colors.GREEN}Logged out successfully.{Colors.RESET}")
+                print(f"\n{Colors.GREEN}Sesión cerrada exitosamente.{Colors.RESET}")
                 input(
-                    f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}"
+                    f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}"
                 )
                 return
             elif choice == "0":
-                print(f"\n{Colors.CYAN}Goodbye!{Colors.RESET}")
+                print(f"\n{Colors.CYAN}¡Adiós!{Colors.RESET}")
                 sys.exit(0)
             else:
-                print(f"\n{Colors.RED}Invalid option.{Colors.RESET}")
+                print(f"\n{Colors.RED}Opción inválida.{Colors.RESET}")
                 input(
-                    f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}"
+                    f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}"
                 )
 
     def run_python_app(self, script_name):
         """Run a Python GUI application."""
         if not os.path.exists(script_name):
-            print(f"\n{Colors.RED}Error: {script_name} not found.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}Error: {script_name} no encontrado.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
         try:
-            print(f"\n{Colors.CYAN}Starting {script_name}...{Colors.RESET}")
+            print(f"\n{Colors.CYAN}Iniciando {script_name}...{Colors.RESET}")
             # Pass user role to pos_gui.py for role-based access control
             if script_name == "pos_gui.py" and self.current_role:
                 subprocess.run([sys.executable, script_name, self.current_role])
             else:
                 subprocess.run([sys.executable, script_name])
         except Exception as e:
-            print(f"\n{Colors.RED}Error executing {script_name}: {e}{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}Error ejecutando {script_name}: {e}{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
 
     def add_user_menu(self):
         """Menu for adding a new user."""
         self.clear_screen()
-        self.print_header("ADD NEW USER")
+        self.print_header("AGREGAR NUEVO USUARIO")
 
         print(
-            f"\n{Colors.BRIGHT_WHITE}Enter new user details:{Colors.RESET}\n"
+            f"\n{Colors.BRIGHT_WHITE}Ingrese detalles del nuevo usuario:{Colors.RESET}\n"
         )
 
-        username = input(f"{Colors.CYAN}Username:{Colors.RESET} ").strip()
+        username = input(f"{Colors.CYAN}Usuario:{Colors.RESET} ").strip()
         if not username:
             print(
-                f"\n{Colors.RED}Username cannot be empty.{Colors.RESET}"
+                f"\n{Colors.RED}El nombre de usuario no puede estar vacío.{Colors.RESET}"
             )
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
-        password = getpass.getpass(f"{Colors.CYAN}Password:{Colors.RESET} ")
+        password = getpass.getpass(f"{Colors.CYAN}Contraseña:{Colors.RESET} ")
         if not password:
-            print(f"\n{Colors.RED}Password cannot be empty.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}La contraseña no puede estar vacía.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
         password_confirm = getpass.getpass(
-            f"{Colors.CYAN}Confirm Password:{Colors.RESET} "
+            f"{Colors.CYAN}Confirmar Contraseña:{Colors.RESET} "
         )
         if password != password_confirm:
-            print(f"\n{Colors.RED}Passwords do not match.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}Las contraseñas no coinciden.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
-        print(f"\n{Colors.BOLD}{Colors.YELLOW}Select Role:{Colors.RESET}")
+        print(f"\n{Colors.BOLD}{Colors.YELLOW}Seleccione Rol:{Colors.RESET}")
         print(
-            f"  {Colors.CYAN}1.{Colors.RESET} Administrator {Colors.BRIGHT_BLACK}(Full Access){Colors.RESET}"
+            f"  {Colors.CYAN}1.{Colors.RESET} Administrador {Colors.BRIGHT_BLACK}(Acceso Total){Colors.RESET}"
         )
         print(
-            f"  {Colors.CYAN}2.{Colors.RESET} Cashier {Colors.BRIGHT_BLACK}(Limited Access){Colors.RESET}"
+            f"  {Colors.CYAN}2.{Colors.RESET} Cajero {Colors.BRIGHT_BLACK}(Acceso Limitado){Colors.RESET}"
         )
         role_choice = input(
-            f"\n{Colors.GREEN}>{Colors.RESET} Enter choice (1-2): "
+            f"\n{Colors.GREEN}>{Colors.RESET} Ingrese opción (1-2): "
         ).strip()
 
         if role_choice == "1":
@@ -476,156 +476,156 @@ class LoginSystem:
         elif role_choice == "2":
             role = "cashier"
         else:
-            print(f"\n{Colors.RED}Invalid role selection.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}Selección de rol inválida.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
         success, message = self.user_manager.create_user(username, password, role)
         if success:
-            role_display = "Administrator" if role == "admin" else "Cashier"
+            role_display = "Administrador" if role == "admin" else "Cajero"
             print(
-                f"\n{Colors.BG_GREEN}{Colors.BOLD} SUCCESS {Colors.RESET} {Colors.GREEN}{message}{Colors.RESET}"
+                f"\n{Colors.BG_GREEN}{Colors.BOLD} ÉXITO {Colors.RESET} {Colors.GREEN}{message}{Colors.RESET}"
             )
             print(
-                f"{Colors.BRIGHT_WHITE}  User: {Colors.CYAN}{username}{Colors.RESET}"
+                f"{Colors.BRIGHT_WHITE}  Usuario: {Colors.CYAN}{username}{Colors.RESET}"
             )
-            print(f"{Colors.BRIGHT_WHITE}  Role: {Colors.CYAN}{role_display}{Colors.RESET}")
+            print(f"{Colors.BRIGHT_WHITE}  Rol: {Colors.CYAN}{role_display}{Colors.RESET}")
         else:
             print(
                 f"\n{Colors.BG_RED}{Colors.BOLD} ERROR {Colors.RESET} {Colors.RED}{message}{Colors.RESET}"
             )
 
-        input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+        input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
 
     def delete_user_menu(self):
         """Menu for deleting a user."""
         self.clear_screen()
-        self.print_header("DELETE USER")
+        self.print_header("ELIMINAR USUARIO")
 
         users = self.user_manager.list_users()
         if not users:
-            print(f"\n{Colors.RED}No users found.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}No se encontraron usuarios.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
-        print(f"\n{Colors.BOLD}{Colors.YELLOW}Current Users:{Colors.RESET}")
+        print(f"\n{Colors.BOLD}{Colors.YELLOW}Usuarios Actuales:{Colors.RESET}")
         for username, data in users.items():
-            role_display = "Administrator" if data["role"] == "admin" else "Cashier"
+            role_display = "Administrador" if data["role"] == "admin" else "Cajero"
             print(
                 f"  {Colors.CYAN}{username}{Colors.RESET} {Colors.BRIGHT_BLACK}({role_display}){Colors.RESET}"
             )
 
         username = input(
-            f"\n{Colors.GREEN}>{Colors.RESET} Enter username to delete {Colors.BRIGHT_BLACK}(or Press Enter to cancel){Colors.RESET}: "
+            f"\n{Colors.GREEN}>{Colors.RESET} Ingrese usuario a eliminar {Colors.BRIGHT_BLACK}(o Presione Enter para cancelar){Colors.RESET}: "
         ).strip()
         if not username:
             return
 
         if username == self.current_user:
             print(
-                f"\n{Colors.RED}You cannot delete your own account while logged in.{Colors.RESET}"
+                f"\n{Colors.RED}No puede eliminar su propia cuenta mientras está conectado.{Colors.RESET}"
             )
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
         confirm = (
             input(
-                f"\n{Colors.YELLOW}WARNING:{Colors.RESET}  Are you sure you want to delete '{Colors.CYAN}{username}{Colors.RESET}'? {Colors.BRIGHT_WHITE}(yes/no):{Colors.RESET} "
+                f"\n{Colors.YELLOW}ADVERTENCIA:{Colors.RESET}  ¿Está seguro de que desea eliminar a '{Colors.CYAN}{username}{Colors.RESET}'? {Colors.BRIGHT_WHITE}(si/no):{Colors.RESET} "
             )
             .strip()
             .lower()
         )
-        if confirm != "yes":
-            print(f"\n{Colors.GREEN}Deletion cancelled.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+        if confirm != "si" and confirm != "yes":
+            print(f"\n{Colors.GREEN}Eliminación cancelada.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
         success, message = self.user_manager.delete_user(username)
         if success:
             print(
-                f"\n{Colors.BG_GREEN}{Colors.BOLD} SUCCESS {Colors.RESET} {Colors.GREEN}{message}{Colors.RESET}"
+                f"\n{Colors.BG_GREEN}{Colors.BOLD} ÉXITO {Colors.RESET} {Colors.GREEN}{message}{Colors.RESET}"
             )
         else:
             print(
                 f"\n{Colors.BG_RED}{Colors.BOLD} ERROR {Colors.RESET} {Colors.RED}{message}{Colors.RESET}"
             )
 
-        input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+        input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
 
     def change_password_menu(self):
         """Menu for changing a user's password."""
         self.clear_screen()
-        self.print_header("CHANGE PASSWORD")
+        self.print_header("CAMBIAR CONTRASEÑA")
 
         users = self.user_manager.list_users()
         if not users:
-            print(f"\n{Colors.RED}No users found.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}No se encontraron usuarios.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
-        print(f"\n{Colors.BOLD}{Colors.YELLOW}Current Users:{Colors.RESET}")
+        print(f"\n{Colors.BOLD}{Colors.YELLOW}Usuarios Actuales:{Colors.RESET}")
         for username, data in users.items():
             print(f"  {Colors.CYAN}{username}{Colors.RESET}")
 
         username = input(
-            f"\n{Colors.GREEN}>{Colors.RESET} Enter username {Colors.BRIGHT_BLACK}(or Press Enter to cancel){Colors.RESET}: "
+            f"\n{Colors.GREEN}>{Colors.RESET} Ingrese usuario {Colors.BRIGHT_BLACK}(o Presione Enter para cancelar){Colors.RESET}: "
         ).strip()
         if not username:
             return
 
         if username not in users:
-            print(f"\n{Colors.RED}User not found.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}Usuario no encontrado.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
         new_password = getpass.getpass(
-            f"\n{Colors.CYAN}Enter new password:{Colors.RESET} "
+            f"\n{Colors.CYAN}Ingrese nueva contraseña:{Colors.RESET} "
         )
         if not new_password:
-            print(f"\n{Colors.RED}Password cannot be empty.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}La contraseña no puede estar vacía.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
         password_confirm = getpass.getpass(
-            f"{Colors.CYAN}Confirm new password:{Colors.RESET} "
+            f"{Colors.CYAN}Confirme nueva contraseña:{Colors.RESET} "
         )
         if new_password != password_confirm:
-            print(f"\n{Colors.RED}Passwords do not match.{Colors.RESET}")
-            input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+            print(f"\n{Colors.RED}Las contraseñas no coinciden.{Colors.RESET}")
+            input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
             return
 
         success, message = self.user_manager.change_password(username, new_password)
         if success:
             print(
-                f"\n{Colors.BG_GREEN}{Colors.BOLD} SUCCESS {Colors.RESET} {Colors.GREEN}{message}{Colors.RESET}"
+                f"\n{Colors.BG_GREEN}{Colors.BOLD} ÉXITO {Colors.RESET} {Colors.GREEN}{message}{Colors.RESET}"
             )
         else:
             print(
                 f"\n{Colors.BG_RED}{Colors.BOLD} ERROR {Colors.RESET} {Colors.RED}{message}{Colors.RESET}"
             )
 
-        input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+        input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
 
     def list_users_menu(self):
         """Menu for listing all users."""
         self.clear_screen()
-        self.print_header("LIST USERS")
+        self.print_header("LISTAR USUARIOS")
 
         users = self.user_manager.list_users()
         if not users:
-            print(f"\n{Colors.RED}No users found.{Colors.RESET}")
+            print(f"\n{Colors.RED}No se encontraron usuarios.{Colors.RESET}")
         else:
             print(
-                f"\n{Colors.BOLD}{Colors.CYAN}{'Username':<25} {'Role':<20}{Colors.RESET}"
+                f"\n{Colors.BOLD}{Colors.CYAN}{'Usuario':<25} {'Rol':<20}{Colors.RESET}"
             )
             print(f"{Colors.BRIGHT_BLACK}{'-' * 45}{Colors.RESET}")
             for username, data in users.items():
-                role_display = "Administrator" if data["role"] == "admin" else "Cashier"
+                role_display = "Administrador" if data["role"] == "admin" else "Cajero"
                 print(
                     f"{Colors.CYAN}{username:<25}{Colors.RESET} {Colors.WHITE}{role_display:<20}{Colors.RESET}"
                 )
 
-        input(f"\n{Colors.YELLOW}Press Enter to continue...{Colors.RESET}")
+        input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
 
     def run(self):
         """Main application loop."""
@@ -646,5 +646,5 @@ if __name__ == "__main__":
         app = LoginSystem()
         app.run()
     except KeyboardInterrupt:
-        print("\n\nGoodbye!")
+        print("\n\n¡Adiós!")
         sys.exit(0)

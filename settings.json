@@ -1,7 +1,7 @@
 {
-    "business_name": "My Business",
-    "address": "123 Main St, City",
-    "phone": "3231234567",
-    "cashier_name": "Cashier",
-    "logo_path": "Xun-POS.png"
+    "logo_path": "/home/teacher/Xun-POS-Spanish/Xun-POS.png",
+    "business_name": "Xun-POS",
+    "address": "La Tierra",
+    "phone": "1234567890",
+    "cashier_name": "TeacherdhApps"
 }

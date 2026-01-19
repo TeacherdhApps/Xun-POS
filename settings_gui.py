@@ -9,11 +9,11 @@ from tkinter import filedialog, messagebox, ttk
 # Prevent execution on Windows OS
 if platform.system() == "Windows":
     print("=" * 60)
-    print("ERROR: This application is not compatible with Windows")
+    print("ERROR: Esta aplicación no es compatible con Windows")
     print("=" * 60)
-    print("\nThis POS system is designed exclusively for Unix systems")
-    print("(Linux, macOS, BSD, etc.) and cannot run on Windows.")
-    print("\nPlease use a Linux or macOS system to run this application.")
+    print("\nEste sistema POS está diseñado exclusivamente para sistemas Unix")
+    print("(Linux, macOS, BSD, etc.) y no puede ejecutarse en Windows.")
+    print("\nPor favor, utilice un sistema Linux o macOS para ejecutar esta aplicación.")
     print("=" * 60)
     sys.exit(1)
 
@@ -21,7 +21,7 @@ if platform.system() == "Windows":
 class SettingsApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Store Settings")
+        self.title("Configuración de Tienda")
         self.geometry("800x600")
         self.is_fullscreen = False  # Track fullscreen state
         
@@ -112,7 +112,7 @@ class SettingsApp(tk.Tk):
         info_label.pack(side=tk.RIGHT, anchor=tk.NE)
 
         ttk.Label(
-            title_frame, text="Store Settings", font=("Arial", 24, "bold")
+            title_frame, text="Configuración de Tienda", font=("Arial", 24, "bold")
         ).pack(side=tk.LEFT, padx=10, pady=10)
 
         main_frame = ttk.Frame(self, padding="30")
@@ -121,10 +121,10 @@ class SettingsApp(tk.Tk):
         # Entry fields
         fields = {
             "logo_path": "Logo:",
-            "business_name": "Business Name:",
-            "address": "Address:",
-            "phone": "Phone:",
-            "cashier_name": "Cashier Name:",
+            "business_name": "Nombre Negocio:",
+            "address": "Dirección:",
+            "phone": "Teléfono:",
+            "cashier_name": "Nombre Cajero:",
         }
 
         self.entries = {}
@@ -139,14 +139,14 @@ class SettingsApp(tk.Tk):
                 self.logo_frame.grid(row=i, column=1, sticky="ew", padx=10, pady=15)
                 self.entries[key] = ttk.Label(
                     self.logo_frame,
-                    text="Not selected",
+                    text="No seleccionado",
                     anchor="w",
                     font=("Arial", 14),
                 )
                 self.entries[key].pack(side=tk.LEFT, expand=True, fill=tk.X)
                 logo_button = ttk.Button(
                     self.logo_frame,
-                    text="Select...",
+                    text="Seleccionar...",
                     command=self.select_logo,
                     style="Accent.TButton",
                 )
@@ -168,7 +168,7 @@ class SettingsApp(tk.Tk):
         # Save button
         save_button = ttk.Button(
             buttons_frame,
-            text="Save Settings",
+            text="Guardar Configuración",
             command=self.save_settings,
             style="Success.TButton",
         )
@@ -177,7 +177,7 @@ class SettingsApp(tk.Tk):
         # Exit button with F12
         exit_button = ttk.Button(
             buttons_frame,
-            text="F12 - Exit",
+            text="F12 - Salir",
             command=self.exit_app,
             style="Exit.TButton",
         )
@@ -196,10 +196,10 @@ class SettingsApp(tk.Tk):
 
     def select_logo(self):
         file_path = filedialog.askopenfilename(
-            title="Select Logo File",
+            title="Seleccionar Archivo de Logo",
             filetypes=(
-                ("Image files", "*.png *.jpg *.jpeg *.gif *.bmp"),
-                ("All files", "*.*"),
+                ("Archivos de imagen", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                ("Todos los archivos", "*.* "),
             ),
         )
         if file_path:
@@ -218,7 +218,7 @@ class SettingsApp(tk.Tk):
                     widget.delete(0, tk.END)
                     widget.insert(0, settings[key])
                 elif isinstance(widget, ttk.Label):
-                    widget.config(text=settings[key] or "Not selected")
+                    widget.config(text=settings[key] or "No seleccionado")
 
     def save_settings(self):
         settings = {}
@@ -231,10 +231,10 @@ class SettingsApp(tk.Tk):
         try:
             with open(self.settings_file, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=4)
-            messagebox.showinfo("Success", "Settings saved successfully.")
+            messagebox.showinfo("Éxito", "Configuración guardada exitosamente.")
         except Exception as e:
             messagebox.showerror(
-                "Error", f"Could not save settings.\nError: {e}"
+                "Error", f"No se pudo guardar la configuración.\nError: {e}"
             )
 
     def exit_app(self):
