@@ -1,0 +1,10 @@
+fecha_hora,tipo,monto,concepto
+2026-01-18T18:01:54.715813,Entrada,600.0,caja
+2026-01-18T18:02:06.784156,Salida,200.0,bimbo
+2026-01-18T18:03:22.209102,Venta,20.0,Venta Ticket #1
+2026-01-18T18:03:43.494155,Venta,40.0,Venta Ticket #1
+2026-01-18T18:10:36.919502,Venta,20.0,Venta Ticket #1
+2026-01-18T18:10:46.924876,Venta,30.0,Venta Ticket #2
+2026-01-18T18:14:10.450513,Venta,10.0,Venta Ticket #2
+2026-01-18T18:24:48.107424,Venta,10.0,Venta Ticket #1
+2026-01-18T19:01:14.808614,Venta,60.0,Venta Ticket #1

@@ -1,136 +1,130 @@
-# Xun-POS - Sistema de Punto de Venta
+# Xun-POS - Point of Sale System
 
-Punto de venta rápido y ligero.
+Fast and lightweight Point of Sale system.
 
-## Inicio Rápido
+## Quick Start
 
-### Instalación de Dependencias
+### Dependency Installation
 
-Antes de ejecutar el programa, instala las dependencias necesarias:
+Before running the program, install the necessary dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Ejecutar el Programa
-
-```bash
-./start
-```
-
-O directamente:
+### Run the Program
 
 ```bash
 python3 login.py
 ```
 
-### Credenciales por Defecto
+### Default Credentials
 
-- **Usuario:** `admin`
-- **Contraseña:** `password`
+- **Username:** `admin`
+- **Password:** `password`
 
-**Nota:** Cambia la contraseña después del primer inicio
+**Note:** Change the password after the first login.
 
-## Requisitos
+## Requirements
 
-- **Sistema Operativo:** Linux (Ubuntu, Debian, Fedora, Arch, etc.)
-- **Python:** 3.7 o superior
+- **Operating System:** Linux (Ubuntu, Debian, Fedora, Arch, etc.)
+- **Python:** 3.7 or higher
 
-Para otras dependencias, consulta la sección de **Instalación de Dependencias**.
+For other dependencies, check the **Dependency Installation** section.
 
-**Importante:** Esta aplicación NO es compatible con Windows
+**Important:** This application is NOT compatible with Windows.
 
-## Características
+## Features
 
-### Módulos Principales
+### Main Modules
 
-1. **Punto de Venta (POS)** - Interfaz principal de ventas
-2. **Gestión de Productos** - Agregar, editar y eliminar productos
-3. **Reportes** - Ventas y movimientos de caja
-4. **Configuración** - Datos del negocio y ajustes
+1. **Point of Sale (POS)** - Main sales interface
+2. **Product Management** - Add, edit, and delete products
+3. **Reports** - Sales and cash flow reports
+4. **Settings** - Business details and adjustments
 
-### Sistema de Usuarios
+### User System
 
-**Administrador:**
-- Acceso completo a todos los módulos
-- Gestión de usuarios (crear, eliminar, cambiar contraseñas)
-- Acceso a reportes y configuración
+**Administrator:**
+- Full access to all modules
+- User management (create, delete, change passwords)
+- Access to reports and settings
 
-**Cajero:**
-- Acceso solo a POS y Productos
-- Sin acceso a reportes, configuración ni gestión de usuarios
+**Cashier:**
+- Access only to POS and Products
+- No access to reports, settings, or user management
 
-## Estructura de Archivos
+## File Structure
 
 ```
 Xun-POS/
-├── login.py           # Sistema de autenticación
-├── pos_gui.py         # Punto de venta
-├── products_gui.py    # Gestión de productos
-├── reports_gui.py     # Reportes
-├── settings_gui.py    # Configuración
-├── products.csv       # Base de datos de productos
-├── sales.csv          # Registro de ventas
-├── cash_flow.csv      # Movimientos de caja
-├── .credentials       # Usuarios y contraseñas
-├── settings.json      # Configuración de la tienda
-└── start              # Script de inicio
+├── login.py           # Authentication system
+├── pos_gui.py         # Point of Sale
+├── products_gui.py    # Product management
+├── reports_gui.py     # Reports
+├── settings_gui.py    # Settings
+├── products.csv       # Product database
+├── sales.csv          # Sales log
+├── cash_flow.csv      # Cash flow records
+├── .credentials       # Users and passwords
+├── settings.json      # Store settings
+└── install.sh         # Installation script
 ```
 
-## Gestión de Usuarios (Solo Admin)
+## User Management (Admin Only)
 
-### Agregar Usuario
-1. Iniciar sesión como admin
-2. Seleccionar opción 5: "Agregar Nuevo Usuario"
-3. Ingresar nombre de usuario y contraseña
-4. Seleccionar rol (admin o cajero)
+### Add User
+1. Login as admin
+2. Select option 5: "Add New User"
+3. Enter username and password
+4. Select role (admin or cashier)
 
-### Cambiar Contraseña
-1. Iniciar sesión como admin
-2. Seleccionar opción 7: "Cambiar Contraseña"
-3. Seleccionar usuario
-4. Ingresar nueva contraseña
+### Change Password
+1. Login as admin
+2. Select option 7: "Change Password"
+3. Select user
+4. Enter new password
 
-### Eliminar Usuario
-1. Iniciar sesión como admin
-2. Seleccionar opción 6: "Eliminar Usuario"
-3. Seleccionar usuario a eliminar
-4. Confirmar eliminación
+### Delete User
+1. Login as admin
+2. Select option 6: "Delete User"
+3. Select user to delete
+4. Confirm deletion
 
-## Uso Diario
+## Daily Usage
 
-### Para Cajeros
-1. Iniciar sesión con credenciales de cajero
-2. Acceder al POS para realizar ventas
-3. Gestionar inventario de productos según necesidad
+### For Cashiers
+1. Login with cashier credentials
+2. Access POS to make sales
+3. Manage product inventory as needed
 
-### Para Administradores
-1. Revisar reportes de ventas diariamente
-2. Actualizar inventario y precios
-3. Gestionar usuarios y configuración del sistema
-4. Monitorear movimientos de caja
+### For Administrators
+1. Review sales reports daily
+2. Update inventory and prices
+3. Manage users and system settings
+4. Monitor cash flow
 
-## Seguridad
+## Security
 
-- Contraseñas codificadas en Base64
-- Control de acceso por roles
-- Protección contra auto-eliminación de usuario activo
-- Protección del último usuario administrador
+- Passwords hashed (PBKDF2 with SHA256)
+- Role-based access control
+- Protection against self-deletion of active user
+- Protection of the last administrator user
 
-## Archivos de Datos
+## Data Files
 
 ### products.csv
-Formato: `barcode,name,price,inventario`
+Format: `barcode,name,price,inventory`
 
 ### sales.csv
-Formato: `timestamp,barcode,nombre,cantidad,precio_unitario,precio_total`
+Format: `timestamp,barcode,name,quantity,unit_price,total_price`
 
 ### cash_flow.csv
-Formato: `timestamp,tipo,monto,concepto`
+Format: `timestamp,type,amount,concept`
 
-## Solución de Problemas
+## Troubleshooting
 
-### Python no encontrado
+### Python not found
 ```bash
 # Ubuntu/Debian
 sudo apt install python3 python3-tk
@@ -142,13 +136,12 @@ sudo dnf install python3 python3-tkinter
 sudo pacman -S python tk
 ```
 
-### Error de permisos
+### Permission error
 ```bash
-chmod +x start
 chmod +x login.py
 ```
 
-### tkinter no disponible
+### tkinter not available
 ```bash
 # Ubuntu/Debian
 sudo apt install python3-tk
@@ -157,29 +150,29 @@ sudo apt install python3-tk
 sudo dnf install python3-tkinter
 ```
 
-## Notas
+## Notes
 
-- Los archivos CSV usan formato UTF-8
-- Las fechas están en formato dd/mm/yyyy
-- La interfaz está completamente en español
-- Los movimientos de caja se registran automáticamente con cada venta
+- CSV files use UTF-8 format
+- Dates are in YYYY-MM-DD format (mostly) or locale specific
+- The interface is completely in English
+- Cash flow movements are automatically recorded with each sale
 
-## Actualización del Sistema
+## System Update
 
-Para mantener los datos al actualizar:
-1. Hacer backup de los archivos .csv, .credentials y settings.json
-2. Actualizar los archivos .py
-3. Restaurar los datos guardados
+To keep data when updating:
+1. Backup .csv files, .credentials, and settings.json
+2. Update .py files
+3. Restore saved data
 
-## Soporte
+## Support
 
-Para problemas o preguntas, consulta el código fuente o contacta al administrador del sistema.
+For issues or questions, consult the source code or contact the system administrator.
 
-## Licencia
+## License
 
-Este proyecto está bajo la Licencia MIT. Para más detalles, vea el archivo [LICENSE](LICENSE).
+This project is under the MIT License. For more details, see the [LICENSE](LICENSE) file.
 
 ---
 
-**Versión:** 1.0.0  
-**Última actualización:** Diciembre 2025
+**Version:** 1.0.0  
+**Last Update:** January 2026

@@ -12,6 +12,7 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
+
 try:
     from thermal_printer import ThermalPrinter
 except ImportError:
@@ -24,7 +25,7 @@ if platform.system() == "Windows":
     print("=" * 60)
     print("\nEste sistema POS está diseñado exclusivamente para sistemas Unix")
     print("(Linux, macOS, BSD, etc.) y no puede ejecutarse en Windows.")
-    print("\nPor favor usa un sistema Linux o macOS para ejecutar esta aplicación.")
+    print("\nPor favor, utilice un sistema Linux o macOS para ejecutar esta aplicación.")
     print("=" * 60)
     sys.exit(1)
 
@@ -37,12 +38,15 @@ class POS_GUI(tk.Tk):
         self.resizable(True, True)
         self.user_role = user_role  # Store user role for access control
         self.is_fullscreen = False  # Track fullscreen state
+        
+        # Base directory for absolute paths
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
         self.settings = self.load_settings()
         self.products = self.load_products()
         self.active_tickets = {1: {}, 2: {}}
         self.current_ticket_id = 1
-        self.sale_items = self.active_tickets[1]  # Dictionary to handle quantities: {barcode: {'name': str, 'price': float, 'qty': int}}
+        self.sale_items = self.active_tickets[1]  # Dictionary to handle quantities: {codigo: {'nombre': str, 'precio': float, 'cantidad': int}}
         self.last_added_barcode = (
             None  # Track the last added product for quick re-addition
         )
@@ -60,13 +64,15 @@ class POS_GUI(tk.Tk):
     def load_settings(self):
         """Load settings from JSON file with default fallback."""
         default_settings = {
-            "business_name": "Mi Negocio",
-            "address": "Chignahuapan",
-            "phone": "7971234567",
-            "cashier_name": "Dan",
+            "business_name": "Mi Tienda",
+            "address": "Calle Principal 123",
+            "phone": "555-0199",
+            "cashier_name": "Cajero",
+            "logo_path": ""
         }
         try:
-            with open("settings.json", "r", encoding="utf-8") as f:
+            settings_path = os.path.join(self.base_dir, "settings.json")
+            with open(settings_path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
                 default_settings.update(loaded)  # Merge with defaults
                 return default_settings
@@ -74,40 +80,18 @@ class POS_GUI(tk.Tk):
             return default_settings
 
     def update_time(self):
-        """Update date and time labels every second in Spanish format."""
+        """Update date and time labels every second."""
         now = datetime.now()
-
-        # Spanish date formatting
-        days = [
-            "Lunes",
-            "Martes",
-            "Miércoles",
-            "Jueves",
-            "Viernes",
-            "Sábado",
-            "Domingo",
-        ]
-        months = [
-            "enero",
-            "febrero",
-            "marzo",
-            "abril",
-            "mayo",
-            "junio",
-            "julio",
-            "agosto",
-            "septiembre",
-            "octubre",
-            "noviembre",
-            "diciembre",
-        ]
-        day_of_week = days[now.weekday()]
-        day = now.day
-        month = months[now.month - 1]
-        year = now.year
-
-        date_str = f"{day_of_week.capitalize()}, {day} de {month} del {year}"
-        time_str = now.strftime("%H:%M")
+        
+        # Spanish day and month names
+        dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        
+        day_name = dias[now.weekday()]
+        month_name = meses[now.month - 1]
+        
+        date_str = f"{day_name}, {now.day} de {month_name} de {now.year}"
+        time_str = now.strftime("%I:%M %p")
 
         self.date_label.config(text=date_str)
         self.time_label.config(text=time_str)
@@ -115,29 +99,31 @@ class POS_GUI(tk.Tk):
         self.after(1000, self.update_time)
 
     def init_sales_log(self):
-        """Initialize sales.csv with headers if it doesn't exist."""
-        if not os.path.exists("sales.csv"):
-            with open("sales.csv", "w", newline="", encoding="utf-8") as f:
+        """Initialize ventas.csv with headers if it doesn't exist."""
+        filepath = os.path.join(self.base_dir, "ventas.csv")
+        if not os.path.exists(filepath):
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(
                     [
-                        "timestamp",
-                        "barcode",
+                        "fecha_hora",
+                        "codigo",
                         "nombre",
                         "cantidad",
                         "precio_unitario",
-                        "precio_total",
+                        "total",
                     ]
                 )
 
     def log_sale(self, items=None):
-        """Log the sale to sales.csv."""
+        """Log the sale to ventas.csv."""
         target_items = items if items is not None else self.sale_items
         if not target_items:
             return
 
         timestamp = datetime.now().isoformat()
-        with open("sales.csv", "a", newline="", encoding="utf-8") as f:
+        filepath = os.path.join(self.base_dir, "ventas.csv")
+        with open(filepath, "a", newline="", encoding="utf-8") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 writer = csv.writer(f)
@@ -146,20 +132,20 @@ class POS_GUI(tk.Tk):
                         [
                             timestamp,
                             barcode,
-                            item["name"],
+                            item["nombre"],
                             item["qty"],
-                            item["price"],
-                            item["qty"] * item["price"],
+                            item["precio"],
+                            item["qty"] * item["precio"],
                         ]
                     )
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
     def update_inventory(self):
-        """Update product inventory in products.csv after a sale."""
-        filepath = Path("products.csv")
+        """Update product inventory in productos.csv after a sale."""
+        filepath = Path(os.path.join(self.base_dir, "productos.csv"))
         if not filepath.exists():
-            messagebox.showerror("Error", f"El archivo '{filepath}' no fue encontrado.")
+            messagebox.showerror("Error", f"Archivo '{filepath}' no encontrado.")
             return
 
         try:
@@ -194,7 +180,7 @@ class POS_GUI(tk.Tk):
                                 products_dict[barcode][3] = str(new_stock)
                                 changes_made = True
                             except (ValueError, IndexError):
-                                print(f"Warning: Could not update stock for barcode {barcode}")
+                                print(f"Advertencia: No se pudo actualizar el inventario para el código {barcode}")
                     
                     if changes_made:
                         # Reconstruct the lines in the original order
@@ -216,9 +202,9 @@ class POS_GUI(tk.Tk):
     def load_products(self):
         """Load products from CSV file."""
         products = {}
-        filepath = Path("products.csv")
+        filepath = Path(os.path.join(self.base_dir, "productos.csv"))
         if not filepath.exists():
-            messagebox.showerror("Error", f"El archivo '{filepath}' no fue encontrado.")
+            messagebox.showerror("Error", f"Archivo '{filepath}' no encontrado.")
             self.destroy()
             return products
 
@@ -227,22 +213,22 @@ class POS_GUI(tk.Tk):
                 reader = csv.reader(infile)
                 header = next(reader, None)  # Skip header
                 if not header:
-                    raise ValueError("Archivo de productos vacío o sin encabezados.")
+                    raise ValueError("Archivo de productos vacío o faltan encabezados.")
                 for row_num, row in enumerate(reader, start=2):
-                    if len(row) >= 4:  # At least barcode, name, price, inventario
+                    if len(row) >= 4:  # At least codigo, nombre, precio, inventario
                         barcode = row[0].strip().lstrip("0") or "0"
                         name, price_str, inventario_str = row[1:4]
                         try:
                             price = float(price_str)
                             inventario = int(inventario_str)
                             products[barcode] = {
-                                "name": name.strip(),
-                                "price": price,
+                                "nombre": name.strip(),
+                                "precio": price,
                                 "inventario": inventario,
                             }
                         except ValueError:
                             print(
-                                f"Warning: Invalid price or inventario in row {row_num}"
+                                f"Advertencia: Precio o inventario inválido en fila {row_num}"
                             )
                     elif len(row) >= 3:  # Fallback for rows without inventario
                         barcode = row[0].strip().lstrip("0") or "0"
@@ -250,17 +236,17 @@ class POS_GUI(tk.Tk):
                         try:
                             price = float(price_str)
                             products[barcode] = {
-                                "name": name.strip(),
-                                "price": price,
-                                "inventario": 0,
-                            }  # Default inventario to 0
+                                "nombre": name.strip(),
+                                "precio": price,
+                                "inventario": 0,  # Default inventario to 0
+                            }
                         except ValueError:
-                            print(f"Warning: Invalid price in row {row_num}")
+                            print(f"Advertencia: Precio inválido en fila {row_num}")
                     else:
-                        print(f"Warning: Incomplete row {row_num}: {row}")
+                        print(f"Advertencia: Fila incompleta {row_num}: {row}")
         except Exception as e:
             messagebox.showerror(
-                "Error de Datos", f"Error al leer los datos de productos: {e}"
+                "Error de Datos", f"Error leyendo datos de productos: {e}"
             )
             self.destroy()
         return products
@@ -279,6 +265,13 @@ class POS_GUI(tk.Tk):
         DANGER_COLOR = "#DC3545"
         WHITE = "#FFFFFF"
         BLACK = "#1A1A1A"
+
+        # Combobox Listbox Styling (Global for Tcl/Tk)
+        self.option_add("*TCombobox*Listbox.font", ("Arial", 18))
+        self.option_add("*TCombobox*Listbox.background", WHITE)
+        self.option_add("*TCombobox*Listbox.foreground", TEXT_COLOR)
+        self.option_add("*TCombobox*Listbox.selectBackground", ACCENT_COLOR)
+        self.option_add("*TCombobox*Listbox.selectForeground", WHITE)
 
         # General styles
         self.configure(bg=BG_COLOR)
@@ -403,13 +396,13 @@ class POS_GUI(tk.Tk):
 
         # Bind F1 to show payment window
         self.bind("<F1>", lambda event: self.show_payment_window())
-        # Bind F2 to open settings window
-        self.bind("<F2>", lambda event: self.open_settings_window())
-        # Bind F3 to open products window
-        self.bind("<F3>", lambda event: self.open_products_window())
-        # Bind F4 to open reports window (only for admin)
+        # Bind F3 to open settings window
+        self.bind("<F3>", lambda event: self.open_settings_window())
+        # Bind F4 to open products window
+        self.bind("<F4>", lambda event: self.open_products_window())
+        # Bind F5 to open reports window (only for admin)
         if self.user_role == "admin":
-            self.bind("<F4>", lambda event: self.open_reports_window())
+            self.bind("<F5>", lambda event: self.open_reports_window())
         # Bind F12 to exit application
         self.bind("<F12>", lambda event: self.destroy())
         # Bind '+' key to add one more of the last product
@@ -454,17 +447,17 @@ class POS_GUI(tk.Tk):
         # Only show Settings button for admin
         if self.user_role == "admin":
             ttk.Button(
-                button_frame, text="F2 - Ajustes", command=self.open_settings_window
+                button_frame, text="F3 - Ajustes", command=self.open_settings_window
             ).pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
-            button_frame, text="F3 - Productos", command=self.open_products_window
+            button_frame, text="F4 - Productos", command=self.open_products_window
         ).pack(side=tk.LEFT, padx=5)
 
         # Only show Reports button for admin
         if self.user_role == "admin":
             ttk.Button(
-                button_frame, text="F4 - Reportes", command=self.open_reports_window
+                button_frame, text="F5 - Reportes", command=self.open_reports_window
             ).pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
@@ -492,7 +485,7 @@ class POS_GUI(tk.Tk):
         for t_id in sorted(self.active_tickets.keys()):
             style = "Small.Accent.TButton" if t_id == self.current_ticket_id else "Small.TButton"
             
-            btn = ttk.Button(self.tickets_container, text=f"Recibo {t_id}", style=style,
+            btn = ttk.Button(self.tickets_container, text=f"Ticket {t_id}", style=style,
                              command=lambda id=t_id: self.switch_ticket(id))
             btn.pack(side=tk.LEFT, padx=2)
 
@@ -519,7 +512,7 @@ class POS_GUI(tk.Tk):
 
         ttk.Label(
             top_frame,
-            text="Buscar producto (Código o Nombre):",
+            text="PRODUCTO (Código o Nombre):",
             font=("Arial", 20, "bold"),
         ).pack(  # Increased font
             side=tk.LEFT, padx=(0, 10)
@@ -549,10 +542,11 @@ class POS_GUI(tk.Tk):
             show="headings",
             height=8,
         )
+        self.tree.tag_configure("low_stock", background="red")
         self.tree.heading("barcode", text="Código")
         self.tree.heading("name", text="Producto")
         self.tree.heading("qty", text="Cantidad")
-        self.tree.heading("price", text="Precio Unit.")
+        self.tree.heading("price", text="Precio Unit")
         self.tree.heading("total", text="Total")
         self.tree.column("barcode", anchor=tk.W, width=100, minwidth=80)
         self.tree.column("name", anchor=tk.W, width=300, minwidth=200)
@@ -628,31 +622,35 @@ class POS_GUI(tk.Tk):
 
     def open_settings_window(self):
         """Open settings GUI in a new process."""
-        if Path("settings_gui.py").exists():
-            subprocess.Popen([sys.executable, "settings_gui.py"])
+        script_path = os.path.join(self.base_dir, "settings_gui.py")
+        if os.path.exists(script_path):
+            subprocess.Popen([sys.executable, script_path])
 
     def open_products_window(self):
         """Open products GUI in a new process."""
-        if Path("products_gui.py").exists():
-            subprocess.Popen([sys.executable, "products_gui.py"])
+        script_path = os.path.join(self.base_dir, "products_gui.py")
+        if os.path.exists(script_path):
+            subprocess.Popen([sys.executable, script_path])
 
     def open_reports_window(self):
         """Open reports GUI in a new process."""
-        if Path("reports_gui.py").exists():
-            subprocess.Popen([sys.executable, "reports_gui.py"])
+        script_path = os.path.join(self.base_dir, "reports_gui.py")
+        if os.path.exists(script_path):
+            subprocess.Popen([sys.executable, script_path])
 
     def open_entry_window(self):
         """Open entry window for cash inflow."""
-        EntryExitWindow(self, "Entrada de Dinero", "entradas")
+        EntryExitWindow(self, "Entrada Efectivo", "entries")
 
     def open_exit_window(self):
         """Open exit window for cash outflow."""
-        EntryExitWindow(self, "Salida de Dinero", "salidas")
+        EntryExitWindow(self, "Salida Efectivo", "exits")
 
     def log_cash_flow(self, transaction_type, amount, concept):
         """Log cash flow transaction to CSV."""
         timestamp = datetime.now().isoformat()
-        with open("cash_flow.csv", "a", newline="", encoding="utf-8") as f:
+        filepath = os.path.join(self.base_dir, "flujo_caja.csv")
+        with open(filepath, "a", newline="", encoding="utf-8") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 writer = csv.writer(f)
@@ -661,30 +659,45 @@ class POS_GUI(tk.Tk):
                 fcntl.flock(f, fcntl.LOCK_UN)
 
     def init_cash_flow_log(self):
-        """Initialize cash_flow.csv with headers if it doesn't exist."""
-        if not os.path.exists("cash_flow.csv"):
-            with open("cash_flow.csv", "w", newline="", encoding="utf-8") as f:
+        """Initialize flujo_caja.csv with headers if it doesn't exist."""
+        filepath = os.path.join(self.base_dir, "flujo_caja.csv")
+        if not os.path.exists(filepath):
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                writer.writerow(["timestamp", "tipo", "monto", "concepto"])
+                writer.writerow(["fecha_hora", "tipo", "monto", "concepto"])
 
     def show_suggestions(self, event=None):
         """Show product suggestions based on search term."""
+        # Ignore navigation keys to avoid resetting the list while navigating
+        if event and event.keysym in ['Up', 'Down', 'Left', 'Right', 'Return', 'ISO_Left_Tab', 'Tab']:
+            return
+
         search_term = self.product_combobox.get().lower().strip()
         if len(search_term) < 1:
             self.product_combobox["values"] = []
+            try:
+                self.tk.call('ttk::combobox::Unpost', self.product_combobox._w)
+            except tk.TclError:
+                pass
             return
 
         suggestions = []
         for code, product in self.products.items():
-            if search_term in code.lower() or search_term in product["name"].lower():
-                suggestions.append(f"{product['name']} ({code})")
+            if search_term in code.lower() or search_term in product["nombre"].lower():
+                suggestions.append(f"{product['nombre']} ({code})")
 
         if suggestions:
-            self.product_combobox["values"] = suggestions[
-                :10
-            ]  # Limit to 10 suggestions
+            self.product_combobox["values"] = suggestions[:10]  # Limit to 10 suggestions
+            try:
+                self.tk.call('ttk::combobox::Post', self.product_combobox._w)
+            except tk.TclError:
+                pass
         else:
             self.product_combobox["values"] = []
+            try:
+                self.tk.call('ttk::combobox::Unpost', self.product_combobox._w)
+            except tk.TclError:
+                pass
 
     def hide_suggestions(self, event=None):
         """No need to hide for Combobox."""
@@ -716,7 +729,7 @@ class POS_GUI(tk.Tk):
         if not product:
             # Search by name (case-insensitive)
             for code, prod in self.products.items():
-                if prod["name"].lower() == base_term.lower():
+                if prod["nombre"].lower() == base_term.lower():
                     product = prod
                     barcode = code
                     break
@@ -726,8 +739,8 @@ class POS_GUI(tk.Tk):
                 self.sale_items[barcode]["qty"] += qty
             else:
                 self.sale_items[barcode] = {
-                    "name": product["name"],
-                    "price": product["price"],
+                    "nombre": product["nombre"],
+                    "precio": product["precio"],
                     "qty": qty,
                 }
 
@@ -749,7 +762,7 @@ class POS_GUI(tk.Tk):
             self.update_total()
         else:
             self.status_label.config(
-                text="No hay producto previo para añadir más cantidad."
+                text="No hay producto anterior para agregar."
             )
             self.after(2000, lambda: self.status_label.config(text=""))
 
@@ -802,16 +815,18 @@ class POS_GUI(tk.Tk):
 
         # Insert current items
         for barcode, item in self.sale_items.items():
-            total_price = item["qty"] * item["price"]
+            total_price = item["qty"] * item["precio"]
             tags = (barcode,)
+            if self.products.get(barcode, {}).get("inventario", 0) <= 5:
+                tags = (barcode, "low_stock")
             self.tree.insert(
                 "",
                 tk.END,
                 values=(
                     barcode,
-                    item["name"],
+                    item["nombre"],
                     item["qty"],
-                    f"${item['price']:.2f}",
+                    f"${item['precio']:.2f}",
                     f"${total_price:.2f}",
                 ),
                 tags=tags,
@@ -819,7 +834,7 @@ class POS_GUI(tk.Tk):
 
     def update_total(self):
         """Update the total label and return total."""
-        total = sum(item["qty"] * item["price"] for item in self.sale_items.values())
+        total = sum(item["qty"] * item["precio"] for item in self.sale_items.values())
         self.total_label.config(text=f"Total: ${total:.2f}")
         return total
 
@@ -829,7 +844,7 @@ class POS_GUI(tk.Tk):
         if total > 0:
             PaymentWindow(self, total)
         else:
-            messagebox.showwarning("Venta Vacía", "No hay productos en la venta.")
+            messagebox.showwarning("Venta Vacía", "No hay ítems en la venta.")
             self.product_combobox.focus()
 
     def on_closing(self):
@@ -909,15 +924,15 @@ class PaymentWindow(tk.Toplevel):
 
         ttk.Label(
             main_frame,
-            text=f"Total a pagar: ${self.total:.2f}",
+            text=f"Total a Pagar: ${self.total:.2f}",
             font=("Arial", 34, "bold"),
         ).pack(pady=10)
 
-        ttk.Label(main_frame, text="Monto recibido:", font=("Arial", 18, "bold")).pack(
+        ttk.Label(main_frame, text="Monto Recibido:", font=("Arial", 18, "bold")).pack(
             pady=5
         )
         self.amount_entry = ttk.Entry(main_frame, font=("Arial", 24))
-        self.amount_entry.pack(pady=5)
+        self.amount_entry.pack(pady=5, fill=tk.X)
         self.amount_entry.focus()
         self.amount_entry.bind("<Return>", self.calculate_change)
         self.amount_entry.bind("<KP_Enter>", self.calculate_change)
@@ -953,66 +968,21 @@ class PaymentWindow(tk.Toplevel):
     def get_ticket_template(self):
         """Return the ticket HTML template as a string. Robust: embedded in code, no file dependency."""
         return """<!DOCTYPE html>
-<html lang="es">
+<html lang=\"es">
 <head>
-    <meta charset="UTF-8">
-    <title>Ticket de Venta</title>
+    <meta charset=\"UTF-8">
+    <title>Recibo de Venta</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            font-size: 14px;
-            max-width: 300px;
-            margin: auto;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px dashed #000;
-            padding-bottom: 10px;
-        }
-        .logo {
-            max-width: 150px;
-            max-height: 100px;
-            margin-bottom: 10px;
-        }
-        h2 {
-            margin: 5px 0;
-            font-size: 18px;
-        }
-        .info {
-            font-size: 12px;
-            line-height: 1.2;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-        th, td {
-            border-bottom: 1px solid #ddd;
-            padding: 5px;
-            text-align: left;
-        }
-        th {
-            text-align: right;
-            font-weight: bold;
-        }
-        .total {
-            font-size: 16px;
-            font-weight: bold;
-            text-align: right;
-            margin: 5px 0;
-            padding: 5px;
-            border-top: 2px solid #000;
-        }
-        .footer {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 10px;
-            color: #666;
-        }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; font-size: 14px; max-width: 300px; margin: auto; }
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px dashed #000; padding-bottom: 10px; }
+        .logo { max-width: 150px; max-height: 100px; margin-bottom: 10px; }
+        h2 { margin: 5px 0; font-size: 18px; }
+        .info { font-size: 12px; line-height: 1.2; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        th, td { border-bottom: 1px solid #ddd; padding: 5px; text-align: left; }
+        th { text-align: right; font-weight: bold; }
+        .total { font-size: 16px; font-weight: bold; text-align: right; margin: 5px 0; padding: 5px; border-top: 2px solid #000; }
+        .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #666; }
     </style>
 </head>
 <body>
@@ -1036,7 +1006,7 @@ class PaymentWindow(tk.Toplevel):
         {{totals}}
     </div>
     <div class="footer">
-        Gracias por su compra. ¡Vuelva pronto!
+        ¡Gracias por su compra. Vuelva pronto!
     </div>
 </body>
 </html>"""
@@ -1047,7 +1017,7 @@ class PaymentWindow(tk.Toplevel):
             self.amount_paid = float(self.amount_entry.get())
             if self.amount_paid < self.total:
                 messagebox.showerror(
-                    "Error", "El monto recibido es menor que el total.", parent=self
+                    "Error", "Monto recibido es menor al total.", parent=self
                 )
                 return
             self.change_value = self.amount_paid - self.total
@@ -1065,7 +1035,7 @@ class PaymentWindow(tk.Toplevel):
             self.show_action_buttons()
         except ValueError:
             messagebox.showerror(
-                "Error", "Monto inválido. Por favor, ingrese un número.", parent=self
+                "Error", "Monto inválido. Por favor ingrese un número.", parent=self
             )
 
     def show_action_buttons(self):
@@ -1110,9 +1080,9 @@ class PaymentWindow(tk.Toplevel):
         items = []
         for item in self.parent.sale_items.values():
             items.append({
-                'name': item["name"],
+                'name': item["nombre"],
                 'qty': item["qty"],
-                'price': item["price"]
+                'price': item["precio"]
             })
             
         totals = {
@@ -1129,7 +1099,7 @@ class PaymentWindow(tk.Toplevel):
                 return # Success
             except Exception as e:
                 print(f"Thermal printer error: {e}")
-                messagebox.showwarning("Impresora Térmica", f"Error al imprimir en térmica: {e}\nGenerando HTML...")
+                messagebox.showwarning("Thermal Printer", f"Error printing to thermal printer: {e}\nGenerating HTML...")
 
         ticket_template = self.get_ticket_template()
 
@@ -1137,201 +1107,120 @@ class PaymentWindow(tk.Toplevel):
         items_html = ""
         for item in self.parent.sale_items.values():
             name = (
-                item["name"]
+                item["nombre"]
                 .replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace('"', "&quot;")
             )
-            subtotal = item["price"] * item["qty"]
-            items_html += f'<tr><td>{name} (x{item["qty"]})</td><td style="text-align: right;">${subtotal:.2f}</td></tr>'
+            subtotal = item["precio"] * item["qty"]
+            items_html += f'<tr><td>{name} (x{item["qty"]})</td><td>${subtotal:.2f}</td></tr>'
 
-        if not items_html:
-            items_html = '<tr><td colspan="2">No hay ítems</td></tr>'
-
-        # Header info
-        header_info = f"""
-            <div>{self.parent.settings["address"]}</div>
-            <div>{self.parent.settings["phone"]}</div>
-            <div>Cajero: {self.parent.settings["cashier_name"]}</div>
-            <div>{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
+        totals_html = f"""
+        <div class="total">Total: ${self.total:.2f}</div>
+        <div class="total">Efectivo: ${self.amount_paid:.2f}</div>
+        <div class="total">Cambio: ${self.change_value:.2f}</div>
         """
-
-        # Totals block
-        totals_block = f"""
-            <div class="total">Total: ${self.total:.2f}</div>
-            <div class="total">Recibido: ${self.amount_paid:.2f}</div>
-            <div class="total">Cambio: ${self.change_value:.2f}</div>
-        """
-
-        # Logo
+        
+        # Handle Logo
         logo_html = ""
-        logo_path = self.parent.settings.get("logo_path")
-        if logo_path and Path(logo_path).exists():
-            try:
-                with open(logo_path, "rb") as image_file:
-                    encoded_string = base64.b64encode(image_file.read()).decode()
-                mime_type = (
-                    "image/png"
-                    if logo_path.lower().endswith(".png")
-                    else "image/jpeg"
-                    if logo_path.lower().endswith(".jpg")
-                    or logo_path.lower().endswith(".jpeg")
-                    else "image/png"
-                )
-                logo_html = f'<img src="data:{mime_type};base64,{encoded_string}" alt="Logo" class="logo">'
-            except Exception as e:
-                print(f"Warning: Could not embed logo: {e}")
-        # If no logo, just empty
+        if self.parent.settings.get("logo_path") and os.path.exists(self.parent.settings["logo_path"]):
+             logo_html = f'<img src="file://{self.parent.settings["logo_path"]}" class="logo" alt="Logo">'
 
-        # Replace placeholders
-        ticket_html = ticket_template.replace(
-            "{{business_name}}", self.parent.settings["business_name"]
-        )
-        ticket_html = ticket_html.replace("{{header_info}}", header_info)
-        ticket_html = ticket_html.replace("{{items}}", items_html)
-        ticket_html = ticket_html.replace("{{totals}}", totals_block)
-        ticket_html = ticket_html.replace("{{logo}}", logo_html)
+        header_info = f"{business_info['address']}<br>Tel: {business_info['phone']}<br>Cajero: {business_info['cashier']}<br>Fecha: {business_info['date']}"
+
+        html_content = ticket_template.replace("{{logo}}", logo_html) \
+            .replace("{{business_name}}", business_info['name']) \
+            .replace("{{header_info}}", header_info) \
+            .replace("{{items}}", items_html) \
+            .replace("{{totals}}", totals_html)
 
         # Save to temp file and open in browser
-        try:
-            ticket_file = tempfile.NamedTemporaryFile(
-                delete=False, suffix=".html", mode="w", encoding="utf-8"
-            )
-            ticket_file.write(ticket_html)
-            ticket_file.close()
-            webbrowser.open(f"file://{os.path.realpath(ticket_file.name)}")
-            # Optional: clean up after delay, but let user handle
-        except Exception as e:
-            messagebox.showerror(
-                "Error al imprimir", f"No se pudo generar el ticket: {e}", parent=self
-            )
-            return
-
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as f:
+            f.write(html_content.encode("utf-8"))
+            temp_path = f.name
+        
+        webbrowser.open(f"file://{temp_path}")
+        
     def print_and_finalize(self):
-        """Print the ticket and finalize the sale."""
+        """Print ticket and then finalize sale."""
         self.print_ticket()
         self.finalize_sale()
 
     def finalize_sale(self):
-        """Finalize the sale and close window."""
-        try:
-            self.parent.update_inventory()
-            self.parent.log_sale()
-            self.parent.reset_sale()
-        except Exception as e:
-            print(f"Error finalizing sale: {e}")
-        finally:
-            self.destroy()
-
-    def destroy(self):
-        """Close window and return focus to parent."""
-        self.parent.product_combobox.focus_set()
-        super().destroy()
+        """Finalize the sale, clear ticket, and close window."""
+        self.parent.log_sale()
+        self.parent.update_inventory()
+        self.parent.log_cash_flow("Venta", self.total, f"Venta Ticket #{self.parent.current_ticket_id}")
+        self.parent.clear_sale()
+        self.destroy()
 
     def on_closing(self):
-        """Prevent closing if not finalized."""
-        if self.amount_paid > 0:
-            if messagebox.askyesno(
-                "Confirmar", "¿Desea finalizar sin imprimir?", parent=self
-            ):
-                self.finalize_sale()
-        else:
-            self.destroy()
+        """Handle window closing."""
+        self.destroy()
 
 
 class EntryExitWindow(tk.Toplevel):
-    """Window for logging cash entries or exits."""
+    """Window for cash entry and exit."""
 
     def __init__(self, parent, title, transaction_type):
         super().__init__(parent)
         self.parent = parent
+        self.transaction_type = transaction_type
+        
         self.title(title)
-        self.geometry("600x400")
+        self.geometry("400x300")
+        self.configure(bg="#f0f0f0")
         self.transient(parent)
         self.grab_set()
-        self.transaction_type = transaction_type
-        self.configure(bg="#f0f0f0")
-        self.protocol("WM_DELETE_WINDOW", self.destroy)
-
-        self.create_styles()
+        
         self.create_widgets()
 
-        # Bind F1 to save transaction
-        self.bind("<F1>", lambda event: self.save_transaction())
-        # Bind Enter keys to save transaction
-        self.bind("<Return>", lambda event: self.save_transaction())
-        self.bind("<KP_Enter>", lambda event: self.save_transaction())
-
-    def destroy(self):
-        """Close window and return focus to parent."""
-        self.parent.product_combobox.focus_set()
-        super().destroy()
-
-    def create_styles(self):
-        """Create custom styles for the window."""
-        style = ttk.Style(self)
-        style.configure(
-            "Blue.TButton",
-            font=("Arial", 14, "bold"),
-            padding=10,
-            background="#007BFF",
-            foreground="white",
-        )
-        style.map("Blue.TButton", background=[("active", "#0056b3")])
-
     def create_widgets(self):
-        """Create entry/exit window widgets."""
-        main_frame = ttk.Frame(self, padding="20")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        ttk.Label(main_frame, text="Monto:", font=("Arial", 16)).pack(pady=5)
-        self.amount_entry = ttk.Entry(main_frame, font=("Arial", 24))
-        self.amount_entry.pack(pady=5, fill=tk.X)
+        ttk.Label(self, text="Monto:", font=("Arial", 14, "bold")).pack(pady=10)
+        self.amount_entry = ttk.Entry(self, font=("Arial", 14))
+        self.amount_entry.pack(pady=5, padx=20, fill=tk.X)
         self.amount_entry.focus()
+        
+        ttk.Label(self, text="Concepto:", font=("Arial", 14, "bold")).pack(pady=10)
+        self.concept_entry = ttk.Entry(self, font=("Arial", 14))
+        self.concept_entry.pack(pady=5, padx=20, fill=tk.X)
+        
+        # Bind Enter keys to save
+        self.bind("<Return>", lambda e: self.save())
+        self.bind("<KP_Enter>", lambda e: self.save())
 
-        ttk.Label(main_frame, text="Concepto:", font=("Arial", 16)).pack(pady=5)
-        self.concept_entry = ttk.Entry(main_frame, font=("Arial", 24))
-        self.concept_entry.pack(pady=5, fill=tk.X)
+        ttk.Button(self, text="Ent - Guardar", command=self.save, style="Success.TButton").pack(pady=20)
 
-        self.add_button = ttk.Button(
-            main_frame,
-            text="F1 - Agregar",
-            command=self.save_transaction,
-            style="Blue.TButton",
-        )
-        self.add_button.pack(pady=20)
-
-    def save_transaction(self):
-        """Save the transaction and close."""
-        amount_str = self.amount_entry.get().strip()
-        concept = self.concept_entry.get().strip()
-
+    def save(self):
+        amount_str = self.amount_entry.get()
+        concept = self.concept_entry.get()
+        
         if not amount_str or not concept:
-            messagebox.showerror("Error", "Ambos campos son requeridos.", parent=self)
+            messagebox.showwarning("Error", "Todos los campos son obligatorios.")
             return
-
+            
         try:
             amount = float(amount_str)
-            if amount <= 0:
-                raise ValueError("Monto debe ser positivo.")
         except ValueError:
-            messagebox.showerror(
-                "Error", "El monto debe ser un número positivo.", parent=self
-            )
+            messagebox.showerror("Error", "Monto inválido.")
             return
-
-        self.parent.log_cash_flow(self.transaction_type, amount, concept)
-        messagebox.showinfo("Éxito", "La transacción ha sido guardada.", parent=self)
+            
+        if "Entrada" in self.title():
+            t_type = "Entrada"
+        else:
+            t_type = "Salida"
+            
+        self.parent.log_cash_flow(t_type, amount, concept)
+        messagebox.showinfo("Éxito", "Transacción registrada.")
         self.destroy()
 
 
 if __name__ == "__main__":
-    # Check if role is passed as command line argument
-    import sys
-
-    user_role = sys.argv[1] if len(sys.argv) > 1 else "admin"
-
-    app = POS_GUI(user_role=user_role)
-    app.protocol("WM_DELETE_WINDOW", app.on_closing)
+    if len(sys.argv) > 1:
+        role = sys.argv[1]
+    else:
+        role = "admin"
+    
+    app = POS_GUI(user_role=role)
     app.mainloop()
