@@ -3,7 +3,7 @@
 # Detect the operating system
 if [ -f /etc/debian_version ]; then
     # Debian-based system (Debian, Ubuntu, etc.)
-    echo "Debian-based system detected."
+    echo "Sistema basado en Debian detectado."
     
     # Update package list
     sudo apt-get update
@@ -16,7 +16,7 @@ if [ -f /etc/debian_version ]; then
     
 elif [ -f /etc/fedora-release ]; then
     # Fedora-based system
-    echo "Fedora-based system detected."
+    echo "Sistema basado en Fedora detectado."
     
     # Update package list
     sudo dnf check-update
@@ -29,7 +29,7 @@ elif [ -f /etc/fedora-release ]; then
     
 elif [ -f /etc/arch-release ]; then
     # Arch-based system
-    echo "Arch-based system detected."
+    echo "Sistema basado en Arch detectado."
     
     # Update package list and install packages
     sudo pacman -Syu --noconfirm python python-pip tk
@@ -38,8 +38,8 @@ elif [ -f /etc/arch-release ]; then
     pip install tkcalendar
     
 else
-    echo "Unsupported operating system."
+    echo "Sistema operativo no soportado."
     exit 1
 fi
 
-echo "Installation complete."
+echo "Instalación completa."
