@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import json
 import os
 import platform
@@ -12,7 +13,7 @@ if platform.system() == "Windows":
     print("=" * 60)
     print("\nEste sistema POS está diseñado exclusivamente para sistemas Unix")
     print("(Linux, macOS, BSD, etc.) y no puede ejecutarse en Windows.")
-    print("\nPor favor usa un sistema Linux o macOS para ejecutar esta aplicación.")
+    print("\nPor favor, utilice un sistema Linux o macOS para ejecutar esta aplicación.")
     print("=" * 60)
     sys.exit(1)
 
@@ -20,10 +21,13 @@ if platform.system() == "Windows":
 class SettingsApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Configuración de la Tienda")
+        self.title("Configuración de Tienda")
         self.geometry("800x600")
-        self.settings_file = "settings.json"
         self.is_fullscreen = False  # Track fullscreen state
+        
+        # Base directory for absolute paths
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.settings_file = os.path.join(self.base_dir, "settings.json")
 
         self.create_styles()
         self.create_widgets()
@@ -98,7 +102,7 @@ class SettingsApp(tk.Tk):
         title_frame = ttk.Frame(self, padding="10")
         title_frame.pack(fill=tk.X)
         
-        # @Xun-POS label (Top Right)
+        # Header Info Label
         info_label = ttk.Label(
             title_frame,
             text="@Xun-POS",
@@ -108,8 +112,8 @@ class SettingsApp(tk.Tk):
         info_label.pack(side=tk.RIGHT, anchor=tk.NE)
 
         ttk.Label(
-            title_frame, text="Configuración de la Tienda", font=("Arial", 24, "bold")
-        ).pack(pady=10)
+            title_frame, text="Configuración de Tienda", font=("Arial", 24, "bold")
+        ).pack(side=tk.LEFT, padx=10, pady=10)
 
         main_frame = ttk.Frame(self, padding="30")
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -117,10 +121,10 @@ class SettingsApp(tk.Tk):
         # Entry fields
         fields = {
             "logo_path": "Logo:",
-            "business_name": "Nombre del Negocio:",
+            "business_name": "Nombre Negocio:",
             "address": "Dirección:",
             "phone": "Teléfono:",
-            "cashier_name": "Nombre del Cajero:",
+            "cashier_name": "Nombre Cajero:",
         }
 
         self.entries = {}
@@ -192,10 +196,10 @@ class SettingsApp(tk.Tk):
 
     def select_logo(self):
         file_path = filedialog.askopenfilename(
-            title="Seleccionar archivo de logo",
+            title="Seleccionar Archivo de Logo",
             filetypes=(
                 ("Archivos de imagen", "*.png *.jpg *.jpeg *.gif *.bmp"),
-                ("Todos los archivos", "*.*"),
+                ("Todos los archivos", "*.* "),
             ),
         )
         if file_path:
@@ -227,10 +231,10 @@ class SettingsApp(tk.Tk):
         try:
             with open(self.settings_file, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=4)
-            messagebox.showinfo("Éxito", "Los ajustes se han guardado correctamente.")
+            messagebox.showinfo("Éxito", "Configuración guardada exitosamente.")
         except Exception as e:
             messagebox.showerror(
-                "Error", f"No se pudieron guardar los ajustes.\nError: {e}"
+                "Error", f"No se pudo guardar la configuración.\nError: {e}"
             )
 
     def exit_app(self):

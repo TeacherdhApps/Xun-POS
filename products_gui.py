@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Product Management System
@@ -19,7 +20,7 @@ if platform.system() == "Windows":
     print("=" * 60)
     print("\nEste sistema POS está diseñado exclusivamente para sistemas Unix")
     print("(Linux, macOS, BSD, etc.) y no puede ejecutarse en Windows.")
-    print("\nPor favor usa un sistema Linux o macOS para ejecutar esta aplicación.")
+    print("\nPor favor, utilice un sistema Linux o macOS para ejecutar esta aplicación.")
     print("=" * 60)
     sys.exit(1)
 
@@ -27,12 +28,15 @@ if platform.system() == "Windows":
 class ProductsApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Gestión de Productos - Doble-clic para editar")
+        self.title("Gestión de Productos - Doble clic para editar")
         self.geometry("1400x720")
         self.is_fullscreen = False
+        
+        # Base directory for absolute paths
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
         # Data Management
-        self.all_products = []  # List of dictionaries: {'barcode':, 'name':, 'price':, 'inventory':}
+        self.all_products = []  # List of dictionaries: {'codigo':, 'nombre':, 'precio':, 'inventario':}
         self.current_sort_col = None
         self.current_sort_reverse = False
 
@@ -164,7 +168,7 @@ class ProductsApp(tk.Tk):
 
         self.tree = ttk.Treeview(
             tree_frame,
-            columns=("barcode", "name", "price", "inventory"),
+            columns=("codigo", "nombre", "precio", "inventario"),
             show="headings",
             yscrollcommand=tree_scroll.set,
             height=6
@@ -173,15 +177,15 @@ class ProductsApp(tk.Tk):
 
         # Configure columns and headings with sorting
         columns = {
-            "barcode": "Código de Barras",
-            "name": "Nombre del Producto",
-            "price": "Precio",
-            "inventory": "Inventario"
+            "codigo": "Código",
+            "nombre": "Nombre Producto",
+            "precio": "Precio",
+            "inventario": "Inventario"
         }
         
         for col, text in columns.items():
             self.tree.heading(col, text=text, command=lambda c=col: self.sort_treeview(c))
-            self.tree.column(col, anchor="w" if col in ["barcode", "name"] else "center")
+            self.tree.column(col, anchor="w" if col in ["codigo", "nombre"] else "center")
 
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<Double-1>", self.on_double_click)
@@ -206,25 +210,25 @@ class ProductsApp(tk.Tk):
         for i in range(4):
             form_frame.grid_columnconfigure(i, weight=1, uniform="col")
 
-        # Column 1 - Código de Barras
+        # Column 1 - Barcode
         ttk.Label(
-            form_frame, text="CÓDIGO DE BARRAS:", font=("Arial", 14, "bold")
+            form_frame, text="CÓDIGO:", font=("Arial", 14, "bold")
         ).grid(row=0, column=0, padx=15, pady=(0, 8), sticky="w")
         self.barcode_entry = ttk.Entry(form_frame, font=("Arial", 16), width=15)
         self.barcode_entry.grid(
             row=1, column=0, padx=15, pady=(0, 10), sticky="ew", ipady=8
         )
 
-        # Column 2 - Nombre del Producto
+        # Column 2 - Product Name
         ttk.Label(
-            form_frame, text=" NOMBRE DEL PRODUCTO:", font=("Arial", 14, "bold")
+            form_frame, text=" NOMBRE PRODUCTO:", font=("Arial", 14, "bold")
         ).grid(row=0, column=1, padx=15, pady=(0, 8), sticky="w")
         self.name_entry = ttk.Entry(form_frame, font=("Arial", 16), width=15)
         self.name_entry.grid(
             row=1, column=1, padx=15, pady=(0, 10), sticky="ew", ipady=8
         )
 
-        # Column 3 - Precio
+        # Column 3 - Price
         ttk.Label(form_frame, text="PRECIO:", font=("Arial", 14, "bold")).grid(
             row=0, column=2, padx=15, pady=(0, 8), sticky="w"
         )
@@ -233,7 +237,7 @@ class ProductsApp(tk.Tk):
             row=1, column=2, padx=15, pady=(0, 10), sticky="ew", ipady=8
         )
 
-        # Column 4 - Inventario
+        # Column 4 - Inventory
         ttk.Label(form_frame, text="INVENTARIO:", font=("Arial", 14, "bold")).grid(
             row=0, column=3, padx=15, pady=(0, 8), sticky="w"
         )
@@ -256,7 +260,7 @@ class ProductsApp(tk.Tk):
 
         ttk.Button(
             button_frame,
-            text="Agregar Nuevo Producto",
+            text="Agregar Producto",
             command=self.add_product,
             style="Success.TButton",
         ).grid(row=0, column=0, padx=5, sticky="ew")
@@ -270,7 +274,7 @@ class ProductsApp(tk.Tk):
 
         ttk.Button(
             button_frame,
-            text="Guardar Cambios al Archivo",
+            text="Guardar Cambios",
             command=self.save_to_csv,
             style="Accent.TButton",
         ).grid(row=0, column=2, padx=5, sticky="ew")
@@ -284,7 +288,7 @@ class ProductsApp(tk.Tk):
 
     def load_data_into_memory(self):
         """Read CSV and store in self.all_products."""
-        filepath = "products.csv"
+        filepath = os.path.join(self.base_dir, "productos.csv")
         self.all_products = []
         
         if not os.path.exists(filepath):
@@ -292,7 +296,7 @@ class ProductsApp(tk.Tk):
             try:
                 with open(filepath, "w", newline="", encoding="utf-8") as f:
                     writer = csv.writer(f)
-                    writer.writerow(["barcode", "name", "price", "inventario"])
+                    writer.writerow(["codigo", "nombre", "precio", "inventario"])
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo crear el archivo: {e}")
             return
@@ -301,20 +305,20 @@ class ProductsApp(tk.Tk):
             with open(filepath, mode="r", encoding="utf-8") as infile:
                 reader = csv.reader(infile)
                 header = next(reader, None)
-                if header != ["barcode", "name", "price", "inventario"]:
-                    messagebox.showerror("Error de Formato", "El archivo CSV tiene un encabezado incorrecto.")
+                if header != ["codigo", "nombre", "precio", "inventario"]:
+                    messagebox.showerror("Error de Formato", "Archivo CSV tiene encabezado incorrecto.")
                     return
 
                 for row in reader:
                     if len(row) >= 4:
                         self.all_products.append({
-                            "barcode": row[0].strip().lstrip("0") or "0",
-                            "name": row[1],
-                            "price": row[2],
-                            "inventory": row[3]
+                            "codigo": row[0].strip().lstrip("0") or "0",
+                            "nombre": row[1],
+                            "precio": row[2],
+                            "inventario": row[3]
                         })
         except Exception as e:
-            messagebox.showerror("Error al Cargar", f"No se pudo leer el archivo: {e}")
+            messagebox.showerror("Error de Carga", f"No se pudo leer archivo: {e}")
 
     def populate_treeview(self, products):
         """Populate the treeview with the given list of products."""
@@ -323,7 +327,7 @@ class ProductsApp(tk.Tk):
             self.tree.delete(i)
         
         for p in products:
-            self.tree.insert("", tk.END, values=(p['barcode'], p['name'], p['price'], p['inventory']))
+            self.tree.insert("", tk.END, values=(p['codigo'], p['nombre'], p['precio'], p['inventario']))
 
     def filter_products(self, *args):
         """Filter products based on search criteria."""
@@ -332,12 +336,12 @@ class ProductsApp(tk.Tk):
         
         # Map friendly names to keys
         key_map = {
-            "Nombre": "name",
-            "Código": "barcode",
-            "Precio": "price",
-            "Inventario": "inventory"
+            "Nombre": "nombre",
+            "Código": "codigo",
+            "Precio": "precio",
+            "Inventario": "inventario"
         }
-        key = key_map.get(filter_by, "name")
+        key = key_map.get(filter_by, "nombre")
 
         filtered = []
         for p in self.all_products:
@@ -362,7 +366,7 @@ class ProductsApp(tk.Tk):
             val = item[col]
             # Try to convert to float/int for numerical sorting
             try:
-                if col in ["price", "inventory", "barcode"]:
+                if col in ["precio", "inventario", "codigo"]:
                     return float(val)
             except ValueError:
                 pass
@@ -390,7 +394,7 @@ class ProductsApp(tk.Tk):
         column_index = int(column_id.replace("#", "")) - 1
         
         # Determine key from index
-        keys = ["barcode", "name", "price", "inventory"]
+        keys = ["codigo", "nombre", "precio", "inventario"]
         key = keys[column_index]
 
         selected_iid = self.tree.focus()
@@ -407,7 +411,7 @@ class ProductsApp(tk.Tk):
         # Find the product dict in memory
         product_idx = -1
         for i, p in enumerate(self.all_products):
-            if p['barcode'] == original_barcode:
+            if p['codigo'] == original_barcode:
                 product_idx = i
                 break
         
@@ -433,8 +437,8 @@ class ProductsApp(tk.Tk):
             # Validation
             if column_index == 0:  # Barcode
                 # Check uniqueness (excluding self)
-                if any(p['barcode'] == new_value for i, p in enumerate(self.all_products) if i != product_idx):
-                    messagebox.showerror("Error", "El código de barras ya existe.", parent=self)
+                if any(p['codigo'] == new_value for i, p in enumerate(self.all_products) if i != product_idx):
+                    messagebox.showerror("Error", "El código ya existe.", parent=self)
                     entry.destroy()
                     return
             elif column_index == 2:  # Price
@@ -448,7 +452,7 @@ class ProductsApp(tk.Tk):
                 try:
                     int(new_value)
                 except ValueError:
-                    messagebox.showerror("Error", "El inventario debe ser un número entero.", parent=self)
+                    messagebox.showerror("Error", "El inventario debe ser un entero.", parent=self)
                     entry.destroy()
                     return
 
@@ -478,7 +482,7 @@ class ProductsApp(tk.Tk):
         inventory = self.inventory_entry.get().strip()
 
         if not all([barcode, name, price]):
-            messagebox.showerror("Error", "Los campos de código, nombre y precio son requeridos.")
+            messagebox.showerror("Error", "Código, nombre y precio son requeridos.")
             return
 
         try:
@@ -488,19 +492,19 @@ class ProductsApp(tk.Tk):
             else:
                 inventory = "0"
         except ValueError:
-            messagebox.showerror("Error", "El precio y el inventario deben ser números.")
+            messagebox.showerror("Error", "Precio e inventario deben ser números.")
             return
 
         # Check for duplicates in memory
-        if any(p['barcode'] == barcode for p in self.all_products):
-            messagebox.showerror("Error", "El código de barras ya existe.")
+        if any(p['codigo'] == barcode for p in self.all_products):
+            messagebox.showerror("Error", "El código ya existe.")
             return
 
         new_product = {
-            "barcode": barcode,
-            "name": name,
-            "price": price,
-            "inventory": inventory
+            "codigo": barcode,
+            "nombre": name,
+            "precio": price,
+            "inventario": inventory
         }
         
         self.all_products.append(new_product)
@@ -511,15 +515,15 @@ class ProductsApp(tk.Tk):
         # Scroll to bottom if not filtered or if sorted? 
         # For now, just clear form
         self.clear_form()
-        messagebox.showinfo("Éxito", "Producto agregado. Recuerde guardar los cambios.")
+        messagebox.showinfo("Éxito", "Producto agregado. Recuerde guardar cambios.")
 
     def delete_product(self):
         selected_items = self.tree.selection()
         if not selected_items:
-            messagebox.showerror("Error", "Por favor, seleccione un producto para eliminar.")
+            messagebox.showerror("Error", "Seleccione un producto para eliminar.")
             return
 
-        if not messagebox.askyesno("Confirmar", "¿Está seguro de que desea eliminar el producto seleccionado?"):
+        if not messagebox.askyesno("Confirmar", "¿Está seguro de eliminar el producto seleccionado?"):
             return
 
         barcodes_to_remove = []
@@ -530,28 +534,28 @@ class ProductsApp(tk.Tk):
             self.tree.delete(item_id)
 
         # Remove from memory
-        self.all_products = [p for p in self.all_products if p['barcode'] not in barcodes_to_remove]
+        self.all_products = [p for p in self.all_products if p['codigo'] not in barcodes_to_remove]
 
     def save_to_csv(self):
         if not messagebox.askyesno(
-            "Confirmar Guardado",
-            "¿Desea guardar todos los cambios en products.csv?\nEsto sobrescribirá el archivo.",
+            "Confirmar Guardar",
+            "¿Desea guardar todos los cambios en productos.csv?\nEsto sobrescribirá el archivo.",
         ):
             return
 
         try:
-            filepath = "products.csv"
+            filepath = os.path.join(self.base_dir, "productos.csv")
             # Prepare rows
             rows = []
             for p in self.all_products:
-                rows.append([p['barcode'], p['name'], p['price'], p['inventory']])
+                rows.append([p['codigo'], p['nombre'], p['precio'], p['inventario']])
 
             # Write with lock
             # Ensure file exists first
             if not os.path.exists(filepath):
                  with open(filepath, "w", newline="", encoding="utf-8") as f:
                      writer = csv.writer(f)
-                     writer.writerow(["barcode", "name", "price", "inventario"])
+                     writer.writerow(["codigo", "nombre", "precio", "inventario"])
             
             with open(filepath, "r+", newline="", encoding="utf-8") as f:
                 fcntl.flock(f, fcntl.LOCK_EX)
@@ -559,15 +563,15 @@ class ProductsApp(tk.Tk):
                     f.seek(0)
                     f.truncate()
                     writer = csv.writer(f)
-                    writer.writerow(["barcode", "name", "price", "inventario"])
+                    writer.writerow(["codigo", "nombre", "precio", "inventario"])
                     writer.writerows(rows)
                 finally:
                     fcntl.flock(f, fcntl.LOCK_UN)
             
-            messagebox.showinfo("Éxito", "Los cambios se han guardado correctamente en products.csv.")
+            messagebox.showinfo("Éxito", "Cambios guardados exitosamente en productos.csv.")
             
         except Exception as e:
-            messagebox.showerror("Error al Guardar", f"Ocurrió un error: {e}")
+            messagebox.showerror("Error Guardando", f"Ocurrió un error: {e}")
 
     def clear_form(self):
         self.barcode_entry.delete(0, tk.END)

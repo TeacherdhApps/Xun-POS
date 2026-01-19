@@ -14,16 +14,16 @@ class ThermalPrinter:
             found_printers = glob.glob("/dev/usb/lp*")
             if found_printers:
                 self.device_path = found_printers[0]
-                print(f"Auto-detected printer at: {self.device_path}")
+                print(f"Impresora detectada automáticamente en: {self.device_path}")
             else:
-                print(f"Warning: No printer found at {device_path} and no /dev/usb/lp* devices detected.")
+                print(f"Advertencia: No se encontró impresora en {device_path} y no se detectaron dispositivos /dev/usb/lp*.")
 
     def _write(self, data):
         try:
             with open(self.device_path, 'wb') as f:
                 f.write(data)
         except Exception as e:
-            print(f"Error printing to {self.device_path}: {e}")
+            print(f"Error imprimiendo en {self.device_path}: {e}")
 
     def init_printer(self):
         self._write(self.ESC + b'@')
@@ -70,7 +70,7 @@ class ThermalPrinter:
         # Header
         self.set_align('center')
         self.set_bold(True)
-        self.print_line(business_info.get('name', 'My Business'))
+        self.print_line(business_info.get('name', 'Mi Negocio'))
         self.set_bold(False)
         self.print_line(business_info.get('address', ''))
         self.print_line(business_info.get('phone', ''))
@@ -98,7 +98,7 @@ class ThermalPrinter:
         self.set_align('right')
         self.set_bold(True)
         self.print_line(f"Total: ${totals['total']:.2f}")
-        self.print_line(f"Recibido: ${totals['paid']:.2f}")
+        self.print_line(f"Pagado: ${totals['paid']:.2f}")
         self.print_line(f"Cambio: ${totals['change']:.2f}")
         self.set_bold(False)
 
@@ -136,7 +136,7 @@ class ThermalPrinter:
         
         if not sales_data:
              self.set_align('center')
-             self.print_line("No hay ventas")
+             self.print_line("Sin ventas")
              self.set_align('left')
         else:
             for item in sales_data:
@@ -150,18 +150,18 @@ class ThermalPrinter:
         # Cash Flow
         self.set_align('center')
         self.set_bold(True)
-        self.print_line("MOVIMIENTOS DE CAJA")
+        self.print_line("FLUJO DE CAJA")
         self.set_bold(False)
         self.set_align('left')
 
         if not cash_flow_data:
              self.set_align('center')
-             self.print_line("No hay movimientos")
+             self.print_line("Sin movimientos")
              self.set_align('left')
         else:
             for item in cash_flow_data:
                 # item: {'time', 'type', 'amount', 'concept'}
-                symbol = "+" if item['type'] == "entradas" else "-"
+                symbol = "+" if item['type'] == "entries" else "-" # Note: matching English "entries" from pos_gui if changed there
                 self.print_line(f"{symbol} {item['concept']}")
                 self.print_line(f"  {item['time']}   {item['amount']}")
 
@@ -170,10 +170,10 @@ class ThermalPrinter:
         # Totals
         self.set_align('right')
         self.set_bold(True)
-        self.print_line(f"Total Ventas: {totals['sales']}")
-        self.print_line(f"Total Entradas: {totals['entries']}")
-        self.print_line(f"Total Salidas: {totals['exits']}")
-        self.print_line(f"TOTAL GENERAL: {totals['net']}")
+        self.print_line(f"Ventas Totales: {totals['sales']}")
+        self.print_line(f"Entradas Totales: {totals['entries']}")
+        self.print_line(f"Salidas Totales: {totals['exits']}")
+        self.print_line(f"TOTAL NETO: {totals['net']}")
         self.set_bold(False)
         
         # Footer

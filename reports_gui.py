@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import base64
 import csv
 import fcntl
@@ -23,7 +24,7 @@ if platform.system() == "Windows":
     print("=" * 60)
     print("\nEste sistema POS está diseñado exclusivamente para sistemas Unix")
     print("(Linux, macOS, BSD, etc.) y no puede ejecutarse en Windows.")
-    print("\nPor favor usa un sistema Linux o macOS para ejecutar esta aplicación.")
+    print("\nPor favor, utilice un sistema Linux o macOS para ejecutar esta aplicación.")
     print("=" * 60)
     sys.exit(1)
 
@@ -33,8 +34,8 @@ try:
     from tkcalendar import DateEntry
 except ImportError:
     messagebox.showerror(
-        "Dependency Error",
-        "The 'tkcalendar' library is not installed.\\n\\nPlease install it by running:\\npip install tkcalendar",
+        "Error de Dependencia",
+        "La librería 'tkcalendar' no está instalada.\n\nPor favor instálela ejecutando:\npip install tkcalendar",
     )
     exit()
 
@@ -43,9 +44,12 @@ class ReportsApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Reportes de Ventas")
-        self.geometry("960x650")
+        self.geometry("1400x720")
         self.selected_report_date = date.today()
         self.is_fullscreen = False  # Track fullscreen state
+        
+        # Base directory for absolute paths
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
         self.settings = self.load_settings()
         self.create_styles()
@@ -60,12 +64,13 @@ class ReportsApp(tk.Tk):
         """Load settings from JSON file with default fallback."""
         default_settings = {
             "business_name": "Mi Negocio",
-            "address": "Chignahuapan",
-            "phone": "7971234567",
-            "cashier_name": "Dan",
+            "address": "Calle Principal 123",
+            "phone": "555-0123",
+            "cashier_name": "Cajero",
         }
         try:
-            with open("settings.json", "r", encoding="utf-8") as f:
+            settings_path = os.path.join(self.base_dir, "settings.json")
+            with open(settings_path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
                 default_settings.update(loaded)  # Merge with defaults
                 return default_settings
@@ -73,18 +78,19 @@ class ReportsApp(tk.Tk):
             return default_settings
 
     def init_sales_log(self):
-        # Ensure sales.csv exists with headers if not present
-        if not os.path.exists("sales.csv"):
-            with open("sales.csv", "w", newline="", encoding="utf-8") as f:
+        # Ensure ventas.csv exists with headers if not present
+        filepath = os.path.join(self.base_dir, "ventas.csv")
+        if not os.path.exists(filepath):
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(
                     [
-                        "timestamp",
-                        "barcode",
+                        "fecha_hora",
+                        "codigo",
                         "nombre",
                         "cantidad",
                         "precio_unitario",
-                        "precio_total",
+                        "total",
                     ]
                 )
 
@@ -198,7 +204,7 @@ class ReportsApp(tk.Tk):
         top_frame = ttk.Frame(main_frame, padding=8)
         top_frame.pack(fill=tk.X)
 
-        # @Xun-POS label (Top Right)
+        # Header Info Label
         info_label = ttk.Label(
             top_frame,
             text="@Xun-POS",
@@ -209,7 +215,7 @@ class ReportsApp(tk.Tk):
 
         self.report_date_label = ttk.Label(
             top_frame,
-            text=f"Reporte para: {self.selected_report_date.strftime('%d/%m/%Y')}",
+            text=f"Reporte del: {self.selected_report_date.strftime('%Y-%m-%d')}",
             style="Date.TLabel",
         )
         self.report_date_label.pack(pady=10)
@@ -218,9 +224,9 @@ class ReportsApp(tk.Tk):
         cal_frame.pack(pady=8, fill=tk.X)
 
         # Configure grid columns for horizontal distribution
-        cal_frame.columnconfigure(0, weight=0)  # Desde label
+        cal_frame.columnconfigure(0, weight=0)  # From label
         cal_frame.columnconfigure(1, weight=1)  # Start calendar
-        cal_frame.columnconfigure(2, weight=0)  # Hasta label
+        cal_frame.columnconfigure(2, weight=0)  # To label
         cal_frame.columnconfigure(3, weight=1)  # End calendar
         cal_frame.columnconfigure(4, weight=0)  # Spacer
         cal_frame.columnconfigure(5, weight=1)  # Print button
@@ -236,7 +242,7 @@ class ReportsApp(tk.Tk):
             background="#007BFF",
             foreground="white",
             borderwidth=3,
-            date_pattern="dd/mm/yyyy",
+            date_pattern="yyyy-mm-dd",
             font=("Arial", 14),
         )
         self.start_cal.grid(row=0, column=1, padx=5, sticky="ew")
@@ -250,7 +256,7 @@ class ReportsApp(tk.Tk):
             background="#007BFF",
             foreground="white",
             borderwidth=3,
-            date_pattern="dd/mm/yyyy",
+            date_pattern="yyyy-mm-dd",
             font=("Arial", 14),
         )
         self.end_cal.grid(row=0, column=3, padx=5, sticky="ew")
@@ -264,7 +270,7 @@ class ReportsApp(tk.Tk):
         # Add Print and Exit buttons
         ttk.Button(
             cal_frame,
-            text="F2 - Imprimir reporte",
+            text="F2 - Imprimir",
             command=self.print_report,
             style="Print.TButton",
         ).grid(row=0, column=5, padx=5, sticky="ew")
@@ -302,7 +308,7 @@ class ReportsApp(tk.Tk):
 
         # Right side for cash flow
         cash_flow_frame = ttk.LabelFrame(
-            content_frame, text="Movimientos de Caja", padding=8
+            content_frame, text="Flujo de Caja", padding=8
         )
         cash_flow_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
 
@@ -331,39 +337,39 @@ class ReportsApp(tk.Tk):
         summary_frame.columnconfigure(2, weight=1, uniform="totals")
         summary_frame.columnconfigure(3, weight=1, uniform="totals")
 
-        # Column 1: Total de Ventas
+        # Column 1: Total Sales
         ventas_col = ttk.Frame(summary_frame)
         ventas_col.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
-        ttk.Label(ventas_col, text="Total de Ventas", font=("Arial", 11, "bold")).pack()
+        ttk.Label(ventas_col, text="Ventas Totales", font=("Arial", 11, "bold")).pack()
         self.report_total_label = ttk.Label(
             ventas_col, text="$0.00", style="Total.TLabel"
         )
         self.report_total_label.pack()
 
-        # Column 2: Total Entradas
+        # Column 2: Total Entries
         entradas_col = ttk.Frame(summary_frame)
         entradas_col.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
         ttk.Label(
-            entradas_col, text="Total Entradas", font=("Arial", 11, "bold")
+            entradas_col, text="Entradas Totales", font=("Arial", 11, "bold")
         ).pack()
         self.entradas_total_label = ttk.Label(
             entradas_col, text="$0.00", style="Success.Total.TLabel"
         )
         self.entradas_total_label.pack()
 
-        # Column 3: Total Salidas
+        # Column 3: Total Exits
         salidas_col = ttk.Frame(summary_frame)
         salidas_col.grid(row=0, column=2, padx=5, pady=5, sticky="nsew")
-        ttk.Label(salidas_col, text="Total Salidas", font=("Arial", 11, "bold")).pack()
+        ttk.Label(salidas_col, text="Salidas Totales", font=("Arial", 11, "bold")).pack()
         self.salidas_total_label = ttk.Label(
             salidas_col, text="$0.00", style="Danger.Total.TLabel"
         )
         self.salidas_total_label.pack()
 
-        # Column 4: Total General
+        # Column 4: Net Total
         general_col = ttk.Frame(summary_frame)
         general_col.grid(row=0, column=3, padx=5, pady=5, sticky="nsew")
-        ttk.Label(general_col, text="Total General", font=("Arial", 11, "bold")).pack()
+        ttk.Label(general_col, text="Total Neto", font=("Arial", 11, "bold")).pack()
         self.net_total_label = ttk.Label(
             general_col, text="$0.00", style="Net.Total.TLabel"
         )
@@ -391,7 +397,7 @@ class ReportsApp(tk.Tk):
         start_date = self.start_cal.get_date()
         end_date = self.end_cal.get_date()
         self.report_date_label.config(
-            text=f"Reporte desde: {start_date.strftime('%d/%m/%Y')} hasta: {end_date.strftime('%d/%m/%Y')}"
+            text=f"Reporte Desde: {start_date.strftime('%Y-%m-%d')} Hasta: {end_date.strftime('%Y-%m-%d')}"
         )
         self.load_report_for_date(start_date, end_date)
 
@@ -403,11 +409,11 @@ class ReportsApp(tk.Tk):
 
         if start_date == end_date:
             self.report_date_label.config(
-                text=f"Reporte para: {start_date.strftime('%d/%m/%Y')}"
+                text=f"Reporte del: {start_date.strftime('%Y-%m-%d')}"
             )
         else:
             self.report_date_label.config(
-                text=f"Reporte desde: {start_date.strftime('%d/%m/%Y')} hasta: {end_date.strftime('%d/%m/%Y')}"
+                text=f"Reporte Desde: {start_date.strftime('%Y-%m-%d')} Hasta: {end_date.strftime('%Y-%m-%d')}"
             )
         for i in self.report_tree.get_children():
             self.report_tree.delete(i)
@@ -419,17 +425,19 @@ class ReportsApp(tk.Tk):
         exits_total = 0.0
 
         try:
-            with open("sales.csv", "r", encoding="utf-8") as f:
+            sales_path = os.path.join(self.base_dir, "ventas.csv")
+            with open(sales_path, "r", encoding="utf-8") as f:
                 fcntl.flock(f, fcntl.LOCK_SH)
                 try:
                     reader = csv.DictReader(f)
                     for row in reader:
-                        sale_date = datetime.fromisoformat(row["timestamp"]).date()
+                        sale_date = datetime.fromisoformat(row["fecha_hora"]).date()
                         if start_date <= sale_date <= end_date:
-                            sale_time = datetime.fromisoformat(row["timestamp"]).strftime(
-                                "%d/%m/%Y %H:%M:%S"
+                            sale_time = datetime.fromisoformat(row["fecha_hora"]).strftime(
+                                "%Y-%m-%d %H:%M:%S"
                             )
-                            total_price = float(row["precio_total"])
+                            # Using Spanish CSV headers: total
+                            total_price = float(row["total"])
                             self.report_tree.insert(
                                 "",
                                 tk.END,
@@ -447,16 +455,18 @@ class ReportsApp(tk.Tk):
             pass  # File will be created on first sale
 
         try:
-            with open("cash_flow.csv", "r", encoding="utf-8") as f:
+            cash_flow_path = os.path.join(self.base_dir, "flujo_caja.csv")
+            with open(cash_flow_path, "r", encoding="utf-8") as f:
                 fcntl.flock(f, fcntl.LOCK_SH)
                 try:
                     reader = csv.DictReader(f)
                     for row in reader:
-                        transaction_date = datetime.fromisoformat(row["timestamp"]).date()
+                        transaction_date = datetime.fromisoformat(row["fecha_hora"]).date()
                         if start_date <= transaction_date <= end_date:
                             transaction_time = datetime.fromisoformat(
-                                row["timestamp"]
-                            ).strftime("%d/%m/%Y %H:%M:%S")
+                                row["fecha_hora"]
+                            ).strftime("%Y-%m-%d %H:%M:%S")
+                            # Using Spanish CSV headers: tipo, monto, concepto
                             amount = float(row["monto"])
                             self.cash_flow_tree.insert(
                                 "",
@@ -468,9 +478,9 @@ class ReportsApp(tk.Tk):
                                     row["concepto"],
                                 ),
                             )
-                            if row["tipo"] == "entradas":
+                            if row["tipo"] == "Entrada":
                                 entries_total += amount
-                            elif row["tipo"] == "salidas":
+                            elif row["tipo"] == "Salida":
                                 exits_total += amount
                 finally:
                     fcntl.flock(f, fcntl.LOCK_UN)
@@ -525,8 +535,8 @@ class ReportsApp(tk.Tk):
                 printer = ThermalPrinter()
                 printer.print_report(
                     self.settings,
-                    start_date.strftime('%d/%m/%Y'),
-                    end_date.strftime('%d/%m/%Y'),
+                    start_date.strftime('%Y-%m-%d'),
+                    end_date.strftime('%Y-%m-%d'),
                     sales_data,
                     cash_flow_data,
                     totals
@@ -534,7 +544,7 @@ class ReportsApp(tk.Tk):
                 return  # Success
             except Exception as e:
                 print(f"Thermal printer error: {e}")
-                messagebox.showwarning("Impresora Térmica", f"Error al imprimir en térmica: {e}\\nGenerando HTML...")
+                messagebox.showwarning("Thermal Printer", f"Error printing to thermal printer: {e}\nGenerating HTML...")
 
         try:
             # Generate HTML report
@@ -550,7 +560,7 @@ class ReportsApp(tk.Tk):
 
             messagebox.showinfo(
                 "Reporte Generado",
-                "El reporte ha sido generado temporalmente y se abrirá en tu navegador.",
+                "El reporte se generó temporalmente y se abrirá en su navegador.",
             )
         except Exception as e:
             messagebox.showerror(
@@ -571,9 +581,9 @@ class ReportsApp(tk.Tk):
             values = self.report_tree.item(item)["values"]
             time_str = values[0].split()[1] if len(values[0].split()) > 1 else values[0]
             sales_rows += f"""
-        <div class="item">
+        <div class=\"item\">
             <div>{values[1]} (x{values[2]})</div>
-            <div class="item-line">
+            <div class=\"item-line\">
                 <span>{time_str}</span>
                 <span>{values[3]}</span>
             </div>
@@ -582,7 +592,7 @@ class ReportsApp(tk.Tk):
 
         if not sales_rows:
             sales_rows = (
-                '<div class="item" style="text-align: center;">No hay ventas</div>'
+                '<div class="item" style="text-align: center;">Sin ventas</div>'
             )
 
         # Build cash flow rows (thermal printer style)
@@ -590,11 +600,11 @@ class ReportsApp(tk.Tk):
         for item in self.cash_flow_tree.get_children():
             values = self.cash_flow_tree.item(item)["values"]
             time_str = values[0].split()[1] if len(values[0].split()) > 1 else values[0]
-            tipo_symbol = "+" if values[1] == "entradas" else "-"
+            tipo_symbol = "+" if values[1] == "Entrada" else "-"
             cash_rows += f"""
-        <div class="item">
+        <div class=\"item\">
             <div>{tipo_symbol} {values[3]}</div>
-            <div class="item-line">
+            <div class=\"item-line\">
                 <span>{time_str}</span>
                 <span>{values[2]}</span>
             </div>
@@ -603,15 +613,15 @@ class ReportsApp(tk.Tk):
 
         if not cash_rows:
             cash_rows = (
-                '<div class="item" style="text-align: center;">No hay movimientos</div>'
+                '<div class="item" style="text-align: center;">Sin movimientos</div>'
             )
 
         # Generate HTML (Thermal Printer Style)
         html = f"""<!DOCTYPE html>
-<html lang="es">
+<html lang=\"es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte de Ventas - {start_date.strftime("%d/%m/%Y")} al {end_date.strftime("%d/%m/%Y")}</title>
+    <title>Reporte de Ventas - {start_date.strftime("%Y-%m-%d")} to {end_date.strftime("%Y-%m-%d")}</title>
     <style>
         body {{
             font-family: 'Courier New', monospace;
@@ -693,10 +703,10 @@ class ReportsApp(tk.Tk):
     <div class="header">
         <h1>REPORTE DE VENTAS</h1>
         <div class="date-range">
-            {start_date.strftime("%d/%m/%Y")} - {end_date.strftime("%d/%m/%Y")}
+            {start_date.strftime("%Y-%m-%d")} - {end_date.strftime("%Y-%m-%d")}
         </div>
         <div class="date-range">
-            {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}
+            {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         </div>
     </div>
 
@@ -706,26 +716,26 @@ class ReportsApp(tk.Tk):
     </div>
 
     <div class="section">
-        <div class="section-title">MOVIMIENTOS DE CAJA</div>
+        <div class="section-title">FLUJO DE CAJA</div>
         {cash_rows}
     </div>
 
     <div class="totals">
         <div class="total-row">
-            <span>Total Ventas:</span>
+            <span>Ventas Totales:</span>
             <span>{total_ventas}</span>
         </div>
         <div class="total-row">
-            <span>Total Entradas:</span>
+            <span>Entradas Totales:</span>
             <span>{total_entradas}</span>
         </div>
         <div class="total-row">
-            <span>Total Salidas:</span>
+            <span>Salidas Totales:</span>
             <span>{total_salidas}</span>
         </div>
         <div class="separator"></div>
         <div class="total-row grand-total">
-            <span>TOTAL GENERAL:</span>
+            <span>TOTAL NETO:</span>
             <span>{total_general}</span>
         </div>
     </div>
