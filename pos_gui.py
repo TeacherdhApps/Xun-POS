@@ -485,7 +485,7 @@ class POS_GUI(tk.Tk):
         for t_id in sorted(self.active_tickets.keys()):
             style = "Small.Accent.TButton" if t_id == self.current_ticket_id else "Small.TButton"
             
-            btn = ttk.Button(self.tickets_container, text=f"Ticket {t_id}", style=style,
+            btn = ttk.Button(self.tickets_container, text=f"Recibo {t_id}", style=style,
                              command=lambda id=t_id: self.switch_ticket(id))
             btn.pack(side=tk.LEFT, padx=2)
 
@@ -1046,7 +1046,7 @@ class PaymentWindow(tk.Toplevel):
         # Create Print Ticket button (F2 - Green)
         self.print_button = ttk.Button(
             main_frame,
-            text="F2 - Imprimir Ticket",
+            text="F2 - Imprimir Recibo",
             command=self.print_and_finalize,
             style="PaymentGreen.TButton",
         )
@@ -1151,7 +1151,7 @@ class PaymentWindow(tk.Toplevel):
         """Finalize the sale, clear ticket, and close window."""
         self.parent.log_sale()
         self.parent.update_inventory()
-        self.parent.log_cash_flow("Venta", self.total, f"Venta Ticket #{self.parent.current_ticket_id}")
+        self.parent.log_cash_flow("Venta", self.total, f"Venta Recibo #{self.parent.current_ticket_id}")
         self.parent.clear_sale()
         self.destroy()
 

@@ -158,6 +158,15 @@ class ReportsApp(tk.Tk):
         style.map("Exit.TButton", background=[("active", "#333333")])
 
         style.configure(
+            "Modify.TButton",
+            foreground=WHITE,
+            background=ACCENT_COLOR,
+            font=("Arial", 14, "bold"),
+            padding=12,
+        )
+        style.map("Modify.TButton", background=[("active", "#0056b3")])
+
+        style.configure(
             "Total.TLabel",
             font=("Arial", 20, "bold"),
             background=BG_COLOR,
@@ -230,7 +239,8 @@ class ReportsApp(tk.Tk):
         cal_frame.columnconfigure(3, weight=1)  # End calendar
         cal_frame.columnconfigure(4, weight=0)  # Spacer
         cal_frame.columnconfigure(5, weight=1)  # Print button
-        cal_frame.columnconfigure(6, weight=1)  # Exit button
+        cal_frame.columnconfigure(6, weight=1)  # Modify button
+        cal_frame.columnconfigure(7, weight=1)  # Exit button
 
         # Row 0: Calendar widgets and buttons
         ttk.Label(cal_frame, text="Desde:", font=("Arial", 14, "bold")).grid(
@@ -244,6 +254,7 @@ class ReportsApp(tk.Tk):
             borderwidth=3,
             date_pattern="yyyy-mm-dd",
             font=("Arial", 14),
+            locale="es_ES",
         )
         self.start_cal.grid(row=0, column=1, padx=5, sticky="ew")
 
@@ -258,6 +269,7 @@ class ReportsApp(tk.Tk):
             borderwidth=3,
             date_pattern="yyyy-mm-dd",
             font=("Arial", 14),
+            locale="es_ES",
         )
         self.end_cal.grid(row=0, column=3, padx=5, sticky="ew")
 
@@ -277,13 +289,21 @@ class ReportsApp(tk.Tk):
 
         ttk.Button(
             cal_frame,
+            text="F6 - Modificar",
+            command=self.modify_cash_flow,
+            style="Modify.TButton",
+        ).grid(row=0, column=6, padx=5, sticky="ew")
+
+        ttk.Button(
+            cal_frame,
             text="F12 - Salir",
             command=self.exit_app,
             style="Exit.TButton",
-        ).grid(row=0, column=6, padx=5, sticky="ew")
+        ).grid(row=0, column=7, padx=5, sticky="ew")
 
         # Bind F2 and F12 keys
         self.bind("<F2>", lambda e: self.print_report())
+        self.bind("<F6>", lambda e: self.modify_cash_flow())
         self.bind("<F12>", lambda e: self.exit_app())
 
         content_frame = ttk.Frame(main_frame)
@@ -463,6 +483,10 @@ class ReportsApp(tk.Tk):
                     for row in reader:
                         transaction_date = datetime.fromisoformat(row["fecha_hora"]).date()
                         if start_date <= transaction_date <= end_date:
+                            # Filter out sales from cash flow view, show only Entrada/Salida
+                            if row["tipo"] not in ["Entrada", "Salida"]:
+                                continue
+
                             transaction_time = datetime.fromisoformat(
                                 row["fecha_hora"]
                             ).strftime("%Y-%m-%d %H:%M:%S")
@@ -747,6 +771,117 @@ class ReportsApp(tk.Tk):
 </html>"""
 
         return html
+
+    def modify_cash_flow(self):
+        """Modify selected cash flow entry."""
+        selected = self.cash_flow_tree.selection()
+        if not selected:
+            messagebox.showwarning(
+                "Seleccionar Elemento",
+                "Por favor, seleccione un movimiento de la lista de Flujo de Caja para modificar."
+            )
+            return
+
+        item = self.cash_flow_tree.item(selected[0])
+        values = item["values"]
+        # values: [time, type, amount, concept]
+        
+        # Create edit dialog
+        edit_window = tk.Toplevel(self)
+        edit_window.title("Modificar Movimiento")
+        edit_window.geometry("400x350")
+        edit_window.transient(self)
+        edit_window.grab_set()
+        edit_window.configure(bg="#F0F0F0")
+
+        # Center window
+        x = self.winfo_x() + (self.winfo_width() // 2) - 200
+        y = self.winfo_y() + (self.winfo_height() // 2) - 175
+        edit_window.geometry(f"+{x}+{y}")
+
+        ttk.Label(edit_window, text="Modificar Movimiento", font=("Arial", 14, "bold")).pack(pady=10)
+
+        form_frame = ttk.Frame(edit_window, padding=20)
+        form_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Type (Editable Combobox)
+        ttk.Label(form_frame, text="Tipo:").grid(row=0, column=0, sticky="w", pady=5)
+        type_var = tk.StringVar(value=values[1])
+        type_combo = ttk.Combobox(form_frame, textvariable=type_var, values=["Entrada", "Salida"], state="readonly")
+        type_combo.grid(row=0, column=1, sticky="ew", pady=5)
+
+        # Amount
+        ttk.Label(form_frame, text="Monto ($):").grid(row=1, column=0, sticky="w", pady=5)
+        amount_str = str(values[2]).replace("$", "").replace(",", "")
+        amount_var = tk.DoubleVar(value=float(amount_str))
+        amount_entry = ttk.Entry(form_frame, textvariable=amount_var)
+        amount_entry.grid(row=1, column=1, sticky="ew", pady=5)
+
+        # Concept
+        ttk.Label(form_frame, text="Concepto:").grid(row=2, column=0, sticky="w", pady=5)
+        concept_var = tk.StringVar(value=values[3])
+        concept_entry = ttk.Entry(form_frame, textvariable=concept_var)
+        concept_entry.grid(row=2, column=1, sticky="ew", pady=5)
+
+        form_frame.columnconfigure(1, weight=1)
+
+        def save_changes():
+            try:
+                new_type = type_var.get()
+                new_amount = amount_var.get()
+                new_concept = concept_var.get().strip()
+                
+                if not new_concept:
+                    messagebox.showerror("Error", "El concepto no puede estar vacío", parent=edit_window)
+                    return
+
+                # Update CSV
+                rows = []
+                updated = False
+                file_path = os.path.join(self.base_dir, "flujo_caja.csv")
+                
+                # Original time string from the tree view
+                target_time_str = values[0] 
+
+                with open(file_path, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    fieldnames = reader.fieldnames
+                    for row in reader:
+                        # Reconstruct the display time to match
+                        row_display_time = datetime.fromisoformat(row["fecha_hora"]).strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        if row_display_time == target_time_str and row["tipo"] == values[1]:
+                             # Update row
+                             row["tipo"] = new_type
+                             row["monto"] = str(new_amount)
+                             row["concepto"] = new_concept
+                             updated = True
+                        
+                        rows.append(row)
+
+                if updated:
+                    with open(file_path, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.DictWriter(f, fieldnames=fieldnames)
+                        writer.writeheader()
+                        writer.writerows(rows)
+                    
+                    self.load_report_for_date()
+                    edit_window.destroy()
+                    messagebox.showinfo("Éxito", "Movimiento actualizado correctamente")
+                else:
+                     messagebox.showerror("Error", "No se encontró el registro original para actualizar", parent=edit_window)
+
+            except ValueError:
+                messagebox.showerror("Error", "Monto inválido", parent=edit_window)
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al guardar: {e}", parent=edit_window)
+
+        # Buttons
+        btn_frame = ttk.Frame(edit_window, padding=10)
+        btn_frame.pack(fill=tk.X)
+        
+        ttk.Button(btn_frame, text="Cancelar", command=edit_window.destroy).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_frame, text="Guardar", command=save_changes, style="Accent.TButton").pack(side=tk.RIGHT, padx=5)
 
     def exit_app(self):
         """Exit the application."""
