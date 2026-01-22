@@ -677,8 +677,8 @@ class POS_GUI(tk.Tk):
         if self.search_timer:
             self.after_cancel(self.search_timer)
         
-        # Schedule new search in 300ms
-        self.search_timer = self.after(300, self.perform_search)
+        # Schedule new search in 5 seconds (5000ms)
+        self.search_timer = self.after(5000, self.perform_search)
 
     def perform_search(self):
         """Actual search logic executed after debounce."""
