@@ -741,9 +741,20 @@ class POS_GUI(tk.Tk):
 
     def add_product(self, event=None):
         """Add product to sale by barcode or name."""
+        # Cancel any pending search to prevent dropdown from popping up after addition
+        if self.search_timer:
+            self.after_cancel(self.search_timer)
+            self.search_timer = None
+
+        # Close the dropdown list if it's open
+        try:
+            self.tk.call('ttk::combobox::Unpost', self.product_combobox._w)
+        except tk.TclError:
+            pass
+
         search_term = self.product_combobox.get().strip()
         if not search_term:
-            return
+            return "break"
 
         # Parse quantity from search_term, e.g., "CODE*5" or "NAME*2"
         parts = search_term.split("*", 1)
@@ -782,12 +793,12 @@ class POS_GUI(tk.Tk):
             elif len(matches) > 1:
                 self.status_label.config(text=f"Múltiples coincidencias ({len(matches)}). Seleccione de la lista.")
                 self.after(2000, lambda: self.status_label.config(text=""))
-                # Ensure dropdown is open
+                # Re-open dropdown if it was closed but we need selection
                 try:
                     self.tk.call('ttk::combobox::Post', self.product_combobox._w)
                 except tk.TclError:
                     pass
-                return
+                return "break"
 
         if product:
             if barcode in self.sale_items:
@@ -808,6 +819,8 @@ class POS_GUI(tk.Tk):
             self.status_label.config(text=f"Producto '{base_term}' no encontrado.")
             self.after(2000, lambda: self.status_label.config(text=""))
             self.product_combobox.focus()
+        
+        return "break"
 
     def add_one_more_last_product(self):
         """Adds one more quantity of the last product added to the sale."""
