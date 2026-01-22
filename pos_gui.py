@@ -50,6 +50,7 @@ class POS_GUI(tk.Tk):
         self.last_added_barcode = (
             None  # Track the last added product for quick re-addition
         )
+        self.search_timer = None  # Timer for debounce search
 
         self.create_styles()
         self.init_sales_log()
@@ -485,7 +486,7 @@ class POS_GUI(tk.Tk):
         for t_id in sorted(self.active_tickets.keys()):
             style = "Small.Accent.TButton" if t_id == self.current_ticket_id else "Small.TButton"
             
-            btn = ttk.Button(self.tickets_container, text=f"Ticket {t_id}", style=style,
+            btn = ttk.Button(self.tickets_container, text=f"Recibo {t_id}", style=style,
                              command=lambda id=t_id: self.switch_ticket(id))
             btn.pack(side=tk.LEFT, padx=2)
 
@@ -667,10 +668,25 @@ class POS_GUI(tk.Tk):
                 writer.writerow(["fecha_hora", "tipo", "monto", "concepto"])
 
     def show_suggestions(self, event=None):
-        """Show product suggestions based on search term."""
+        """Schedule product suggestions update (debounce)."""
         # Ignore navigation keys to avoid resetting the list while navigating
         if event and event.keysym in ['Up', 'Down', 'Left', 'Right', 'Return', 'ISO_Left_Tab', 'Tab']:
             return
+
+        # Cancel previous timer if exists
+        if self.search_timer:
+            self.after_cancel(self.search_timer)
+        
+        # Schedule new search in 300ms
+        self.search_timer = self.after(300, self.perform_search)
+
+    def perform_search(self):
+        """Actual search logic executed after debounce."""
+        # Save cursor position before updating values
+        try:
+            cursor_pos = self.product_combobox.index(tk.INSERT)
+        except tk.TclError:
+            cursor_pos = None
 
         search_term = self.product_combobox.get().lower().strip()
         if len(search_term) < 1:
@@ -682,20 +698,36 @@ class POS_GUI(tk.Tk):
             return
 
         suggestions = []
+        terms = search_term.split()
+
         for code, product in self.products.items():
-            if search_term in code.lower() or search_term in product["nombre"].lower():
+            # Search in both name and code
+            search_target = f"{product['nombre']} {code}".lower()
+            if all(term in search_target for term in terms):
                 suggestions.append(f"{product['nombre']} ({code})")
 
         if suggestions:
-            self.product_combobox["values"] = suggestions[:10]  # Limit to 10 suggestions
-            try:
-                self.tk.call('ttk::combobox::Post', self.product_combobox._w)
-            except tk.TclError:
-                pass
+            # Only update if different to avoid flickering
+            current_values = self.product_combobox["values"]
+            new_values = tuple(suggestions[:15]) # Limit to 15
+            
+            if current_values != new_values:
+                self.product_combobox["values"] = new_values
+                try:
+                    self.tk.call('ttk::combobox::Post', self.product_combobox._w)
+                except tk.TclError:
+                    pass
         else:
             self.product_combobox["values"] = []
             try:
                 self.tk.call('ttk::combobox::Unpost', self.product_combobox._w)
+            except tk.TclError:
+                pass
+
+        # Restore cursor position
+        if cursor_pos is not None:
+            try:
+                self.product_combobox.icursor(cursor_pos)
             except tk.TclError:
                 pass
 
@@ -718,7 +750,9 @@ class POS_GUI(tk.Tk):
         base_term = parts[0].strip()
         # Handle if base_term is "Name (code)" from combobox selection
         if "(" in base_term and ")" in base_term:
-            base_term = base_term.split("(")[-1].rstrip(")")
+            possible_code = base_term.split("(")[-1].rstrip(")")
+            if possible_code in self.products:
+                base_term = possible_code
         
         # Normalize barcode by stripping leading zeros
         normalized_term = base_term.lstrip("0") or "0"
@@ -727,12 +761,33 @@ class POS_GUI(tk.Tk):
         product = self.products.get(normalized_term)
         barcode = normalized_term
         if not product:
-            # Search by name (case-insensitive)
+            # Search by name (exact match)
             for code, prod in self.products.items():
                 if prod["nombre"].lower() == base_term.lower():
                     product = prod
                     barcode = code
                     break
+
+        # If not found, try smart search (partial/multi-keyword)
+        if not product:
+            search_terms = base_term.lower().split()
+            matches = []
+            for code, prod in self.products.items():
+                search_target = f"{prod['nombre']} {code}".lower()
+                if all(term in search_target for term in search_terms):
+                    matches.append((code, prod))
+            
+            if len(matches) == 1:
+                barcode, product = matches[0]
+            elif len(matches) > 1:
+                self.status_label.config(text=f"Múltiples coincidencias ({len(matches)}). Seleccione de la lista.")
+                self.after(2000, lambda: self.status_label.config(text=""))
+                # Ensure dropdown is open
+                try:
+                    self.tk.call('ttk::combobox::Post', self.product_combobox._w)
+                except tk.TclError:
+                    pass
+                return
 
         if product:
             if barcode in self.sale_items:
@@ -1046,7 +1101,7 @@ class PaymentWindow(tk.Toplevel):
         # Create Print Ticket button (F2 - Green)
         self.print_button = ttk.Button(
             main_frame,
-            text="F2 - Imprimir Ticket",
+            text="F2 - Imprimir Recibo",
             command=self.print_and_finalize,
             style="PaymentGreen.TButton",
         )
@@ -1151,7 +1206,7 @@ class PaymentWindow(tk.Toplevel):
         """Finalize the sale, clear ticket, and close window."""
         self.parent.log_sale()
         self.parent.update_inventory()
-        self.parent.log_cash_flow("Venta", self.total, f"Venta Ticket #{self.parent.current_ticket_id}")
+        self.parent.log_cash_flow("Venta", self.total, f"Venta Recibo #{self.parent.current_ticket_id}")
         self.parent.clear_sale()
         self.destroy()
 
