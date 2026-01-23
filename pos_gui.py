@@ -496,6 +496,8 @@ class POS_GUI(tk.Tk):
         self.sale_items = self.active_tickets[self.current_ticket_id]
         self.update_sale_list()
         self.update_total()
+        self.product_combobox.set('')
+        self.product_combobox['values'] = []
         self.product_combobox.focus()
 
     def reset_sale(self):
@@ -504,6 +506,8 @@ class POS_GUI(tk.Tk):
         self.sale_items = self.active_tickets[self.current_ticket_id]
         self.update_sale_list()
         self.update_total()
+        self.product_combobox.set('')
+        self.product_combobox['values'] = []
         self.product_combobox.focus()
 
     def _create_top_frame(self, parent):
