@@ -274,6 +274,13 @@ class POS_GUI(tk.Tk):
         self.option_add("*TCombobox*Listbox.selectBackground", ACCENT_COLOR)
         self.option_add("*TCombobox*Listbox.selectForeground", WHITE)
 
+        # Custom Combobox styles
+        # Product input: Distinct background to indicate readiness
+        style.configure("Product.TCombobox", fieldbackground="#FFF9C4", background=WHITE) # Light Yellow
+        
+        # Quantity editor: Subtle background
+        style.configure("Qty.TCombobox", fieldbackground="#E8F5E9", background=WHITE) # Light Green
+
         # General styles
         self.configure(bg=BG_COLOR)
         style.configure("TFrame", background=BG_COLOR)
@@ -406,9 +413,6 @@ class POS_GUI(tk.Tk):
             self.bind("<F5>", lambda event: self.open_reports_window())
         # Bind F12 to exit application
         self.bind("<F12>", lambda event: self.destroy())
-        # Bind '+' key to add one more of the last product
-        self.bind("<plus>", lambda event: self.add_one_more_last_product())
-        self.bind("<KP_Add>", lambda event: self.add_one_more_last_product())
         # Bind Tab to focus next widget
         self.bind("<Tab>", lambda event: self.focus_next_widget())
 
@@ -524,7 +528,7 @@ class POS_GUI(tk.Tk):
         )
 
         self.product_combobox = ttk.Combobox(
-            top_frame, font=("Arial", 24, "bold")
+            top_frame, font=("Arial", 24, "bold"), style="Product.TCombobox"
         )  # Increased font
         self.product_combobox.pack(side=tk.LEFT, expand=True, fill=tk.X)
         self.product_combobox.bind("<Return>", self.add_product)
@@ -550,7 +554,7 @@ class POS_GUI(tk.Tk):
         self.tree.tag_configure("low_stock", background="red")
         self.tree.heading("barcode", text="Código")
         self.tree.heading("name", text="Producto")
-        self.tree.heading("qty", text="Cantidad")
+        self.tree.heading("qty", text="Cant. +/-")
         self.tree.heading("price", text="Precio Unit")
         self.tree.heading("total", text="Total")
         self.tree.column("barcode", anchor=tk.W, width=100, minwidth=80)
@@ -571,6 +575,7 @@ class POS_GUI(tk.Tk):
         self.tree.bind("<Delete>", lambda e: self.delete_item())
         self.tree.bind("<Up>", lambda e: self.navigate_tree("up"))
         self.tree.bind("<Down>", lambda e: self.navigate_tree("down"))
+        self.tree.bind("<Button-1>", self.on_tree_click)
 
     def _create_bottom_frame(self, parent):
         """Create the bottom frame with actions and total."""
@@ -760,9 +765,9 @@ class POS_GUI(tk.Tk):
         if not search_term:
             return "break"
 
-        # Parse quantity from search_term, e.g., "CODE*5" or "NAME*2"
-        parts = search_term.split("*", 1)
-        base_term = parts[0].strip()
+        qty = 1
+
+        base_term = search_term
         # Handle if base_term is "Name (code)" from combobox selection
         if "(" in base_term and ")" in base_term:
             possible_code = base_term.split("(")[-1].rstrip(")")
@@ -771,7 +776,6 @@ class POS_GUI(tk.Tk):
         
         # Normalize barcode by stripping leading zeros
         normalized_term = base_term.lstrip("0") or "0"
-        qty = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
 
         product = self.products.get(normalized_term)
         barcode = normalized_term
@@ -826,18 +830,6 @@ class POS_GUI(tk.Tk):
         
         return "break"
 
-    def add_one_more_last_product(self):
-        """Adds one more quantity of the last product added to the sale."""
-        if self.last_added_barcode and self.last_added_barcode in self.sale_items:
-            self.sale_items[self.last_added_barcode]["qty"] += 1
-            self.update_sale_list()
-            self.update_total()
-        else:
-            self.status_label.config(
-                text="No hay producto anterior para agregar."
-            )
-            self.after(2000, lambda: self.status_label.config(text=""))
-
     def focus_next_widget(self):
         """Focus the next logical widget (e.g., from combobox to treeview)."""
         current_focus = self.focus_get()
@@ -847,6 +839,57 @@ class POS_GUI(tk.Tk):
                 self.tree.selection_set(self.tree.get_children()[0])
         else:
             self.product_combobox.focus_set()
+
+    def on_tree_click(self, event):
+        """Handle click on treeview to edit quantity."""
+        region = self.tree.identify("region", event.x, event.y)
+        if region == "cell":
+            column = self.tree.identify_column(event.x)
+            # Assuming 'qty' is the 3rd column (index 2), so '#3'
+            if column == "#3":
+                item_id = self.tree.identify_row(event.y)
+                if not item_id:
+                    return
+
+                # Get barcode from tags
+                barcode = self.tree.item(item_id, "tags")[0]
+
+                bbox = self.tree.bbox(item_id, column)
+                if not bbox:
+                    return
+
+                # Create Combobox
+                # Using 1-10 range as a reasonable default that covers 1, 2, 3
+                entry_edit = ttk.Combobox(
+                    self.tree, values=[str(i) for i in range(1, 11)], font=("Arial", 14), state="readonly", style="Qty.TCombobox"
+                )
+                entry_edit.place(x=bbox[0], y=bbox[1], width=bbox[2], height=bbox[3])
+
+                # Set current value
+                current_qty = self.sale_items[barcode]["qty"]
+                if current_qty > 10:
+                     # If existing qty is > 10, add it to values temporarily so it displays correctly
+                     entry_edit['values'] = list(entry_edit['values']) + [str(current_qty)]
+                
+                entry_edit.set(current_qty)
+
+                def save_edit(event=None):
+                    try:
+                        new_qty = int(entry_edit.get())
+                        if new_qty > 0:
+                            self.sale_items[barcode]["qty"] = new_qty
+                            self.update_sale_list()
+                            self.update_total()
+                    except ValueError:
+                        pass
+                    entry_edit.destroy()
+
+                entry_edit.bind("<Return>", save_edit)
+                entry_edit.bind("<<ComboboxSelected>>", save_edit)
+                entry_edit.bind("<FocusOut>", lambda e: entry_edit.destroy())
+                entry_edit.focus_set()
+                # Simulate drop down immediately
+                entry_edit.event_generate('<Button-1>')
 
     def navigate_tree(self, direction):
         """Navigate treeview with arrow keys."""
