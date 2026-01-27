@@ -40,6 +40,62 @@ except ImportError:
     exit()
 
 
+class SalesChart(tk.Canvas):
+    """A simple bar chart using Tkinter Canvas."""
+    def __init__(self, parent, data, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.data = data
+        self.bind("<Configure>", self.draw)
+
+    def draw(self, event=None):
+        self.delete("all")
+        width = self.winfo_width()
+        height = self.winfo_height()
+        padding = 50
+
+        if not self.data:
+            self.create_text(width/2, height/2, text="No hay datos suficientes", font=("Arial", 14))
+            return
+
+        max_val = max(self.data.values()) if any(self.data.values()) else 1.0
+        # Round up max_val for better scale
+        max_val = ((max_val // 10) + 1) * 10 if max_val > 10 else max_val
+
+        num_days = len(self.data)
+        bar_width = (width - 2 * padding) / (num_days * 2)
+
+        # Draw axes
+        self.create_line(padding, height - padding, width - padding, height - padding, width=2) # X
+        self.create_line(padding, padding, padding, height - padding, width=2) # Y
+
+        # Draw grid and labels
+        for i in range(5):
+            y = height - padding - (i / 4) * (height - 2 * padding)
+            val = (i / 4) * max_val
+            self.create_line(padding - 5, y, padding, y, width=2)
+            self.create_text(padding - 10, y, text=f"${val:.0f}", anchor="e", font=("Arial", 8))
+            if i > 0:
+                self.create_line(padding, y, width - padding, y, fill="#DDDDDD", dash=(2, 2))
+
+        # Draw bars
+        for i, (day, val) in enumerate(sorted(self.data.items())):
+            x = padding + (i * 2 + 0.5) * bar_width
+            bar_height = (val / max_val) * (height - 2 * padding)
+
+            # Bar
+            self.create_rectangle(x, height - padding - bar_height, x + bar_width, height - padding,
+                                 fill="#007BFF", outline="#0056b3")
+
+            # Value on top
+            if val > 0:
+                self.create_text(x + bar_width/2, height - padding - bar_height - 10,
+                                 text=f"${val:.0f}", font=("Arial", 8, "bold"))
+
+            # Day label
+            day_str = day.strftime("%d/%m")
+            self.create_text(x + bar_width/2, height - padding + 15, text=day_str, font=("Arial", 8))
+
+
 class ReportsApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -210,7 +266,24 @@ class ReportsApp(tk.Tk):
         main_frame = ttk.Frame(self, padding=8)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        top_frame = ttk.Frame(main_frame, padding=8)
+        # Create Notebook for tabs
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+
+        # Tab 1: Detailed Reports
+        self.reports_tab = ttk.Frame(self.notebook, padding=8)
+        self.notebook.add(self.reports_tab, text="Detalles de Ventas")
+
+        # Tab 2: Dashboard
+        self.dashboard_tab = ttk.Frame(self.notebook, padding=8)
+        self.notebook.add(self.dashboard_tab, text="Panel de Control (Dashboard)")
+
+        self._create_reports_tab_widgets(self.reports_tab)
+        self._create_dashboard_tab_widgets(self.dashboard_tab)
+
+    def _create_reports_tab_widgets(self, parent):
+
+        top_frame = ttk.Frame(parent, padding=8)
         top_frame.pack(fill=tk.X)
 
         # Header Info Label
@@ -229,7 +302,7 @@ class ReportsApp(tk.Tk):
         )
         self.report_date_label.pack(pady=10)
 
-        cal_frame = ttk.Frame(main_frame, padding=12)
+        cal_frame = ttk.Frame(parent, padding=12)
         cal_frame.pack(pady=8, fill=tk.X)
 
         # Configure grid columns for horizontal distribution
@@ -306,7 +379,7 @@ class ReportsApp(tk.Tk):
         self.bind("<F6>", lambda e: self.modify_cash_flow())
         self.bind("<F12>", lambda e: self.exit_app())
 
-        content_frame = ttk.Frame(main_frame)
+        content_frame = ttk.Frame(parent)
         content_frame.pack(fill=tk.BOTH, expand=True)
 
         # Left side for sales
@@ -348,7 +421,7 @@ class ReportsApp(tk.Tk):
         self.cash_flow_tree.pack(fill=tk.BOTH, expand=True)
 
         # Bottom summary - 4 columns layout
-        summary_frame = ttk.Frame(main_frame, padding=10)
+        summary_frame = ttk.Frame(parent, padding=10)
         summary_frame.pack(fill=tk.X)
 
         # Create 4 equal columns
@@ -395,6 +468,28 @@ class ReportsApp(tk.Tk):
         )
         self.net_total_label.pack()
 
+    def _create_dashboard_tab_widgets(self, parent):
+        """Create widgets for the dashboard tab."""
+        # Top frame for dashboard
+        top_frame = ttk.Frame(parent, padding=10)
+        top_frame.pack(fill=tk.X)
+
+        ttk.Label(top_frame, text="Ventas de los últimos 7 días", font=("Arial", 16, "bold")).pack(side=tk.LEFT)
+
+        ttk.Button(top_frame, text="Actualizar Dashboard", command=self.update_dashboard).pack(side=tk.RIGHT)
+
+        # Chart frame
+        chart_frame = ttk.LabelFrame(parent, text="Gráfico de Ventas Diarias", padding=10)
+        chart_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        self.sales_chart = SalesChart(chart_frame, self.get_last_7_days_sales(), bg="white")
+        self.sales_chart.pack(fill=tk.BOTH, expand=True)
+
+    def update_dashboard(self):
+        """Update the data and redraw the dashboard chart."""
+        self.sales_chart.data = self.get_last_7_days_sales()
+        self.sales_chart.draw()
+
     def set_report_date(self, day):
         today = date.today()
         if day == "today":
@@ -420,6 +515,29 @@ class ReportsApp(tk.Tk):
             text=f"Reporte Desde: {start_date.strftime('%Y-%m-%d')} Hasta: {end_date.strftime('%Y-%m-%d')}"
         )
         self.load_report_for_date(start_date, end_date)
+
+    def get_last_7_days_sales(self):
+        """Aggregate sales total for each of the last 7 days."""
+        today = date.today()
+        sales_by_day = { (today - timedelta(days=i)): 0.0 for i in range(6, -1, -1) }
+
+        try:
+            sales_path = os.path.join(self.base_dir, "ventas.csv")
+            if os.path.exists(sales_path):
+                with open(sales_path, "r", encoding="utf-8") as f:
+                    fcntl.flock(f, fcntl.LOCK_SH)
+                    try:
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            sale_date = datetime.fromisoformat(row["fecha_hora"]).date()
+                            if sale_date in sales_by_day:
+                                sales_by_day[sale_date] += float(row["total"])
+                    finally:
+                        fcntl.flock(f, fcntl.LOCK_UN)
+        except Exception as e:
+            print(f"Error aggregating dashboard data: {e}")
+
+        return sales_by_day
 
     def load_report_for_date(self, start_date=None, end_date=None):
         if start_date is None:
