@@ -6,7 +6,6 @@ import sys
 import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
-import theme_manager
 import backup_manager
 
 # Prevent execution on Windows OS
@@ -32,48 +31,25 @@ class SettingsApp(tk.Tk):
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.settings_file = os.path.join(self.base_dir, "settings.json")
 
-        self.settings = self.load_settings()
         self.create_styles()
         self.create_widgets()
-        self.apply_loaded_settings()
+        self.load_settings()
 
         # Bind F11 for fullscreen toggle
         self.bind("<F11>", self.toggle_fullscreen)
-
-    def load_settings(self):
-        """Load settings from JSON file with default fallback."""
-        default_settings = {
-            "business_name": "Mi Tienda",
-            "address": "Calle Principal 123",
-            "phone": "555-0199",
-            "cashier_name": "Cajero",
-            "logo_path": "",
-            "dark_mode": False
-        }
-        try:
-            if os.path.exists(self.settings_file):
-                with open(self.settings_file, "r", encoding="utf-8") as f:
-                    loaded = json.load(f)
-                    default_settings.update(loaded)
-        except Exception:
-            pass
-        return default_settings
 
     def create_styles(self):
         """Configure ttk styles."""
         style = ttk.Style(self)
         style.theme_use("clam")
 
-        dark_mode = self.settings.get("dark_mode", False)
-        colors = theme_manager.get_theme_colors(dark_mode)
-
         # Palette
-        BG_COLOR = colors["background"]
-        TEXT_COLOR = colors["foreground"]
-        ACCENT_COLOR = colors["accent"]
-        SUCCESS_COLOR = colors["success"]
-        SURFACE = colors["surface"]
-        ON_SURFACE = colors["on_surface"]
+        BG_COLOR = "#F0F0F0"
+        TEXT_COLOR = "#212529"
+        ACCENT_COLOR = "#007BFF"
+        SUCCESS_COLOR = "#28A745"
+        WHITE = "#FFFFFF"
+        BLACK = "#1A1A1A"
 
         # General styles
         self.configure(bg=BG_COLOR)
@@ -84,26 +60,23 @@ class SettingsApp(tk.Tk):
             foreground=TEXT_COLOR,
             font=("Arial", 16, "bold"),
         )
-        style.configure("TButton", font=("Arial", 14, "bold"), padding=12, background=SURFACE, foreground=TEXT_COLOR)
+        style.configure("TButton", font=("Arial", 14, "bold"), padding=12)
         style.map(
             "TButton",
-            background=[("active", colors["background"])],
-            foreground=[("active", colors["accent"])],
+            background=[("active", "#EAEAEA")],
+            foreground=[("active", BLACK)],
         )
         style.configure(
-            "TEntry", font=("Arial", 18), fieldbackground=colors["field_bg"], foreground=colors["field_fg"]
-        )
-        style.configure(
-            "TCheckbutton", background=BG_COLOR, foreground=TEXT_COLOR, font=("Arial", 16, "bold")
+            "TEntry", font=("Arial", 18), fieldbackground=WHITE, foreground=TEXT_COLOR
         )
 
         # Custom Button styles
-        style.configure("Accent.TButton", foreground=SURFACE, background=ACCENT_COLOR)
+        style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
         style.map("Accent.TButton", background=[("active", "#0056b3")])
 
         style.configure(
             "Success.TButton",
-            foreground=SURFACE,
+            foreground=WHITE,
             background=SUCCESS_COLOR,
             font=("Arial", 16, "bold"),
             padding=15,
@@ -113,8 +86,8 @@ class SettingsApp(tk.Tk):
         # Black Exit button
         style.configure(
             "Exit.TButton",
-            foreground=colors["exit_fg"],
-            background=colors["exit_bg"],
+            foreground=WHITE,
+            background="#000000",
             font=("Arial", 16, "bold"),
             padding=15,
         )
@@ -154,7 +127,6 @@ class SettingsApp(tk.Tk):
             "address": "Dirección:",
             "phone": "Teléfono:",
             "cashier_name": "Nombre Cajero:",
-            "dark_mode": "Modo Oscuro:",
         }
 
         self.entries = {}
@@ -181,14 +153,6 @@ class SettingsApp(tk.Tk):
                     style="Accent.TButton",
                 )
                 logo_button.pack(side=tk.RIGHT)
-            elif key == "dark_mode":
-                self.entries[key] = tk.BooleanVar()
-                check = ttk.Checkbutton(
-                    main_frame,
-                    variable=self.entries[key],
-                    style="TCheckbutton"
-                )
-                check.grid(row=i, column=1, sticky="w", padx=10, pady=15)
             else:
                 self.entries[key] = ttk.Entry(main_frame, font=("Arial", 18))
                 if key == "phone":
@@ -266,16 +230,20 @@ class SettingsApp(tk.Tk):
         if file_path:
             self.entries["logo_path"].config(text=file_path)
 
-    def apply_loaded_settings(self):
+    def load_settings(self):
+        if not os.path.exists(self.settings_file):
+            return
+
+        with open(self.settings_file, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+
         for key, widget in self.entries.items():
-            if key in self.settings:
+            if key in settings:
                 if isinstance(widget, ttk.Entry):
                     widget.delete(0, tk.END)
-                    widget.insert(0, self.settings[key])
+                    widget.insert(0, settings[key])
                 elif isinstance(widget, ttk.Label):
-                    widget.config(text=self.settings[key] or "No seleccionado")
-                elif isinstance(widget, tk.BooleanVar):
-                    widget.set(self.settings[key])
+                    widget.config(text=settings[key] or "No seleccionado")
 
     def run_backup(self):
         filename = f"respaldo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
@@ -305,10 +273,8 @@ class SettingsApp(tk.Tk):
             success, message = backup_manager.restore_backup(self.base_dir, src_path)
             if success:
                 messagebox.showinfo("Éxito", message)
-                # Reload settings to reflect changes immediately in current window
-                self.settings = self.load_settings()
-                self.apply_loaded_settings()
-                self.create_styles() # Refresh theme
+                # Reload settings in case they were restored
+                self.load_settings()
             else:
                 messagebox.showerror("Error", message)
 
@@ -319,8 +285,6 @@ class SettingsApp(tk.Tk):
                 settings[key] = widget.get()
             elif isinstance(widget, ttk.Label):
                 settings[key] = widget.cget("text")
-            elif isinstance(widget, tk.BooleanVar):
-                settings[key] = widget.get()
 
         try:
             with open(self.settings_file, "w", encoding="utf-8") as f:
