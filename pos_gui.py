@@ -9,6 +9,7 @@ import sys
 import tempfile
 import tkinter as tk
 import webbrowser
+import theme_manager
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -69,16 +70,18 @@ class POS_GUI(tk.Tk):
             "address": "Calle Principal 123",
             "phone": "555-0199",
             "cashier_name": "Cajero",
-            "logo_path": ""
+            "logo_path": "",
+            "dark_mode": False
         }
         try:
             settings_path = os.path.join(self.base_dir, "settings.json")
-            with open(settings_path, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
-                default_settings.update(loaded)  # Merge with defaults
-                return default_settings
+            if os.path.exists(settings_path):
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                    default_settings.update(loaded)  # Merge with defaults
         except (FileNotFoundError, json.JSONDecodeError):
-            return default_settings
+            pass
+        return default_settings
 
     def update_time(self):
         """Update date and time labels every second."""
@@ -257,29 +260,32 @@ class POS_GUI(tk.Tk):
         style = ttk.Style(self)
         style.theme_use("clam")
 
+        dark_mode = self.settings.get("dark_mode", False)
+        self.colors = theme_manager.get_theme_colors(dark_mode)
+
         # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        SECONDARY_TEXT_COLOR = "#6C757D"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
-        WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
+        BG_COLOR = self.colors["background"]
+        TEXT_COLOR = self.colors["foreground"]
+        SECONDARY_TEXT_COLOR = self.colors["secondary_foreground"]
+        ACCENT_COLOR = self.colors["accent"]
+        SUCCESS_COLOR = self.colors["success"]
+        DANGER_COLOR = self.colors["danger"]
+        SURFACE = self.colors["surface"]
+        ON_SURFACE = self.colors["on_surface"]
 
         # Combobox Listbox Styling (Global for Tcl/Tk)
         self.option_add("*TCombobox*Listbox.font", ("Arial", 18))
-        self.option_add("*TCombobox*Listbox.background", WHITE)
-        self.option_add("*TCombobox*Listbox.foreground", TEXT_COLOR)
+        self.option_add("*TCombobox*Listbox.background", self.colors["field_bg"])
+        self.option_add("*TCombobox*Listbox.foreground", self.colors["field_fg"])
         self.option_add("*TCombobox*Listbox.selectBackground", ACCENT_COLOR)
-        self.option_add("*TCombobox*Listbox.selectForeground", WHITE)
+        self.option_add("*TCombobox*Listbox.selectForeground", SURFACE)
 
         # Custom Combobox styles
         # Product input: Distinct background to indicate readiness
-        style.configure("Product.TCombobox", fieldbackground="#FFF9C4", background=WHITE) # Light Yellow
+        style.configure("Product.TCombobox", fieldbackground=self.colors["product_field_bg"], background=SURFACE)
         
         # Quantity editor: Subtle background
-        style.configure("Qty.TCombobox", fieldbackground="#E8F5E9", background=WHITE) # Light Green
+        style.configure("Qty.TCombobox", fieldbackground=self.colors["qty_field_bg"], background=SURFACE)
 
         # General styles
         self.configure(bg=BG_COLOR)
@@ -287,11 +293,11 @@ class POS_GUI(tk.Tk):
         style.configure(
             "TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=("Arial", 12)
         )
-        style.configure("TButton", font=("Arial", 12, "bold"), padding=5)
+        style.configure("TButton", font=("Arial", 12, "bold"), padding=5, background=SURFACE, foreground=TEXT_COLOR)
         style.map(
             "TButton",
-            background=[("active", "#EAEAEA")],
-            foreground=[("active", BLACK)],
+            background=[("active", self.colors["background"])],
+            foreground=[("active", self.colors["accent"])],
         )
 
         # Treeview styles
@@ -299,16 +305,16 @@ class POS_GUI(tk.Tk):
             "Treeview",
             font=("Arial", 16),
             rowheight=35,
-            background=WHITE,
-            fieldbackground=WHITE,
-            foreground=TEXT_COLOR,
+            background=self.colors["tree_bg"],
+            fieldbackground=self.colors["tree_bg"],
+            foreground=self.colors["tree_fg"],
         )
-        style.map("Treeview", background=[("selected", ACCENT_COLOR)])
+        style.map("Treeview", background=[("selected", self.colors["tree_selected"])])
         style.configure(
             "Treeview.Heading",
             font=("Arial", 16, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
+            background=self.colors["header_bg"],
+            foreground=self.colors["header_fg"],
         )
 
         # Custom Label styles
@@ -316,13 +322,13 @@ class POS_GUI(tk.Tk):
             "Total.TLabel",
             font=("Arial", 48, "bold"),
             background=BG_COLOR,
-            foreground=BLACK,
+            foreground=ON_SURFACE,
         )
         style.configure(
             "Header.TLabel",
             font=("Arial", 28, "bold"),
             background=BG_COLOR,
-            foreground=BLACK,
+            foreground=ON_SURFACE,
         )
         style.configure(
             "DateTime.TLabel",
@@ -344,19 +350,19 @@ class POS_GUI(tk.Tk):
         )
 
         # Custom Button styles
-        style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
+        style.configure("Accent.TButton", foreground=SURFACE, background=ACCENT_COLOR)
         style.map("Accent.TButton", background=[("active", "#0056b3")])
 
-        style.configure("Success.TButton", foreground=WHITE, background=SUCCESS_COLOR)
+        style.configure("Success.TButton", foreground=SURFACE, background=SUCCESS_COLOR)
         style.map("Success.TButton", background=[("active", "#1E7E34")])
 
-        style.configure("Danger.TButton", foreground=WHITE, background=DANGER_COLOR)
+        style.configure("Danger.TButton", foreground=SURFACE, background=DANGER_COLOR)
         style.map("Danger.TButton", background=[("active", "#BD2130")])
 
         # Custom style for larger Accent buttons
         style.configure(
             "Large.Accent.TButton",
-            foreground=WHITE,
+            foreground=SURFACE,
             background=ACCENT_COLOR,
             font=("Arial", 16, "bold"),  # Larger font
             padding=[20, 15],  # More padding (horizontal, vertical)
@@ -364,16 +370,16 @@ class POS_GUI(tk.Tk):
         style.map("Large.Accent.TButton", background=[("active", "#0056b3")])
 
         # Custom style for dark grey buttons
-        style.configure("DarkGrey.TButton", foreground=WHITE, background=TEXT_COLOR)
+        style.configure("DarkGrey.TButton", foreground=SURFACE, background=TEXT_COLOR)
         style.map("DarkGrey.TButton", background=[("active", SECONDARY_TEXT_COLOR)])
 
         # Small Button style
         style.configure("Small.TButton", font=("Arial", 10), padding=1)
-        style.configure("Small.Accent.TButton", font=("Arial", 10, "bold"), padding=1, foreground=WHITE, background=ACCENT_COLOR)
+        style.configure("Small.Accent.TButton", font=("Arial", 10, "bold"), padding=1, foreground=SURFACE, background=ACCENT_COLOR)
         style.map("Small.Accent.TButton", background=[("active", "#0056b3")])
 
         # Black Exit button
-        style.configure("Exit.TButton", foreground=WHITE, background="#000000")
+        style.configure("Exit.TButton", foreground=self.colors["exit_fg"], background=self.colors["exit_bg"])
         style.map("Exit.TButton", background=[("active", "#333333")])
 
     def toggle_fullscreen(self, event=None):
@@ -551,7 +557,8 @@ class POS_GUI(tk.Tk):
             show="headings",
             height=8,
         )
-        self.tree.tag_configure("low_stock", background="red")
+
+        self.tree.tag_configure("low_stock", background=self.colors["low_stock_bg"])
         self.tree.heading("barcode", text="Código")
         self.tree.heading("name", text="Producto")
         self.tree.heading("qty", text="Cant. +/-")
@@ -983,7 +990,7 @@ class PaymentWindow(tk.Toplevel):
         self.geometry("550x500")
         self.transient(parent)
         self.grab_set()
-        self.configure(bg="#f0f0f0")
+        self.configure(bg=self.parent.colors["background"])
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.create_payment_styles()
@@ -1285,7 +1292,7 @@ class EntryExitWindow(tk.Toplevel):
         
         self.title(title)
         self.geometry("400x300")
-        self.configure(bg="#f0f0f0")
+        self.configure(bg=self.parent.colors["background"])
         self.transient(parent)
         self.grab_set()
         

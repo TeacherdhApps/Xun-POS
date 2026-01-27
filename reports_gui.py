@@ -12,6 +12,7 @@ import webbrowser
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from tkinter import messagebox, ttk
+import theme_manager
 try:
     from thermal_printer import ThermalPrinter
 except ImportError:
@@ -67,15 +68,17 @@ class ReportsApp(tk.Tk):
             "address": "Calle Principal 123",
             "phone": "555-0123",
             "cashier_name": "Cajero",
+            "dark_mode": False
         }
         try:
             settings_path = os.path.join(self.base_dir, "settings.json")
-            with open(settings_path, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
-                default_settings.update(loaded)  # Merge with defaults
-                return default_settings
-        except (FileNotFoundError, json.JSONDecodeError):
-            return default_settings
+            if os.path.exists(settings_path):
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                    default_settings.update(loaded)  # Merge with defaults
+        except Exception:
+            pass
+        return default_settings
 
     def init_sales_log(self):
         # Ensure ventas.csv exists with headers if not present
@@ -99,14 +102,17 @@ class ReportsApp(tk.Tk):
         style = ttk.Style(self)
         style.theme_use("clam")
 
+        dark_mode = self.settings.get("dark_mode", False)
+        colors = theme_manager.get_theme_colors(dark_mode)
+
         # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
-        WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
+        BG_COLOR = colors["background"]
+        TEXT_COLOR = colors["foreground"]
+        ACCENT_COLOR = colors["accent"]
+        SUCCESS_COLOR = colors["success"]
+        DANGER_COLOR = colors["danger"]
+        SURFACE = colors["surface"]
+        ON_SURFACE = colors["on_surface"]
 
         # General styles
         self.configure(bg=BG_COLOR)
@@ -114,11 +120,11 @@ class ReportsApp(tk.Tk):
         style.configure(
             "TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=("Arial", 12)
         )
-        style.configure("TButton", font=("Arial", 12, "bold"), padding=10)
+        style.configure("TButton", font=("Arial", 12, "bold"), padding=10, background=SURFACE, foreground=TEXT_COLOR)
         style.map(
             "TButton",
-            background=[("active", "#EAEAEA")],
-            foreground=[("active", BLACK)],
+            background=[("active", colors["background"])],
+            foreground=[("active", colors["accent"])],
         )
 
         # Treeview styles
@@ -126,23 +132,23 @@ class ReportsApp(tk.Tk):
             "Treeview",
             font=("Arial", 12),
             rowheight=30,
-            background=WHITE,
-            fieldbackground=WHITE,
-            foreground=TEXT_COLOR,
+            background=colors["tree_bg"],
+            fieldbackground=colors["tree_bg"],
+            foreground=colors["tree_fg"],
         )
-        style.map("Treeview", background=[("selected", ACCENT_COLOR)])
+        style.map("Treeview", background=[("selected", colors["tree_selected"])])
         style.configure(
             "Treeview.Heading",
             font=("Arial", 12, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
+            background=colors["header_bg"],
+            foreground=colors["header_fg"],
         )
 
         # Custom styles
         style.configure("Big.TButton", font=("Arial", 12, "bold"), padding=8)
         style.configure(
             "Print.TButton",
-            foreground=WHITE,
+            foreground=SURFACE,
             background=SUCCESS_COLOR,
             font=("Arial", 14, "bold"),
             padding=12,
@@ -150,8 +156,8 @@ class ReportsApp(tk.Tk):
         style.map("Print.TButton", background=[("active", "#218838")])
         style.configure(
             "Exit.TButton",
-            foreground=WHITE,
-            background="#000000",
+            foreground=colors["exit_fg"],
+            background=colors["exit_bg"],
             font=("Arial", 14, "bold"),
             padding=12,
         )
@@ -159,7 +165,7 @@ class ReportsApp(tk.Tk):
 
         style.configure(
             "Modify.TButton",
-            foreground=WHITE,
+            foreground=SURFACE,
             background=ACCENT_COLOR,
             font=("Arial", 14, "bold"),
             padding=12,
@@ -170,7 +176,7 @@ class ReportsApp(tk.Tk):
             "Total.TLabel",
             font=("Arial", 20, "bold"),
             background=BG_COLOR,
-            foreground=BLACK,
+            foreground=TEXT_COLOR,
         )
         style.configure(
             "Success.Total.TLabel",
@@ -194,10 +200,10 @@ class ReportsApp(tk.Tk):
             "Date.TLabel",
             font=("Arial", 18, "bold"),
             background=BG_COLOR,
-            foreground=BLACK,
+            foreground=TEXT_COLOR,
         )
 
-        style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
+        style.configure("Accent.TButton", foreground=SURFACE, background=ACCENT_COLOR)
         style.map("Accent.TButton", background=[("active", "#0056b3")])
 
     def toggle_fullscreen(self, event=None):
@@ -792,7 +798,7 @@ class ReportsApp(tk.Tk):
         edit_window.geometry("400x350")
         edit_window.transient(self)
         edit_window.grab_set()
-        edit_window.configure(bg="#F0F0F0")
+        edit_window.configure(bg=self.settings.get("dark_mode", False) and "#121212" or "#F0F0F0")
 
         # Center window
         x = self.winfo_x() + (self.winfo_width() // 2) - 200

@@ -12,6 +12,8 @@ import platform
 import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
+import json
+import theme_manager
 
 # Prevent execution on Windows OS
 if platform.system() == "Windows":
@@ -34,6 +36,7 @@ class ProductsApp(tk.Tk):
         
         # Base directory for absolute paths
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.settings = self.load_settings()
 
         # Data Management
         self.all_products = []  # List of dictionaries: {'codigo':, 'nombre':, 'precio':, 'inventario':}
@@ -52,19 +55,38 @@ class ProductsApp(tk.Tk):
         # Bind F12 to exit
         self.bind("<F12>", lambda e: self.exit_app())
 
+    def load_settings(self):
+        """Load settings from JSON file with default fallback."""
+        default_settings = {
+            "business_name": "Mi Tienda",
+            "dark_mode": False
+        }
+        try:
+            settings_path = os.path.join(self.base_dir, "settings.json")
+            if os.path.exists(settings_path):
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                    default_settings.update(loaded)
+        except Exception:
+            pass
+        return default_settings
+
     def create_styles(self):
         """Configure ttk styles."""
         style = ttk.Style(self)
         style.theme_use("clam")
 
+        dark_mode = self.settings.get("dark_mode", False)
+        colors = theme_manager.get_theme_colors(dark_mode)
+
         # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
-        WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
+        BG_COLOR = colors["background"]
+        TEXT_COLOR = colors["foreground"]
+        ACCENT_COLOR = colors["accent"]
+        SUCCESS_COLOR = colors["success"]
+        DANGER_COLOR = colors["danger"]
+        SURFACE = colors["surface"]
+        ON_SURFACE = colors["on_surface"]
 
         # General styles
         self.configure(bg=BG_COLOR)
@@ -72,18 +94,23 @@ class ProductsApp(tk.Tk):
         style.configure(
             "TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=("Arial", 12)
         )
-        style.configure("TButton", font=("Arial", 14, "bold"), padding=10)
+        style.configure("TButton", font=("Arial", 14, "bold"), padding=10, background=SURFACE, foreground=TEXT_COLOR)
         style.map(
             "TButton",
-            background=[("active", "#EAEAEA")],
-            foreground=[("active", BLACK)],
+            background=[("active", colors["background"])],
+            foreground=[("active", colors["accent"])],
         )
         style.configure(
             "TEntry",
             font=("Arial", 14),
-            fieldbackground=WHITE,
-            foreground=TEXT_COLOR,
+            fieldbackground=colors["field_bg"],
+            foreground=colors["field_fg"],
             padding=10,
+        )
+        style.configure(
+            "TCombobox",
+            fieldbackground=colors["field_bg"],
+            foreground=colors["field_fg"],
         )
 
         # Treeview styles
@@ -91,29 +118,29 @@ class ProductsApp(tk.Tk):
             "Treeview",
             font=("Arial", 12),
             rowheight=40,
-            background=WHITE,
-            fieldbackground=WHITE,
-            foreground=TEXT_COLOR,
+            background=colors["tree_bg"],
+            fieldbackground=colors["tree_bg"],
+            foreground=colors["tree_fg"],
         )
-        style.map("Treeview", background=[("selected", ACCENT_COLOR)])
+        style.map("Treeview", background=[("selected", colors["tree_selected"])])
         style.configure(
             "Treeview.Heading",
             font=("Arial", 12, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
+            background=colors["header_bg"],
+            foreground=colors["header_fg"],
         )
 
         # Custom Button styles
-        style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
+        style.configure("Accent.TButton", foreground=SURFACE, background=ACCENT_COLOR)
         style.map("Accent.TButton", background=[("active", "#0056b3")])
 
-        style.configure("Success.TButton", foreground=WHITE, background=SUCCESS_COLOR)
+        style.configure("Success.TButton", foreground=SURFACE, background=SUCCESS_COLOR)
         style.map("Success.TButton", background=[("active", "#1E7E34")])
 
-        style.configure("Danger.TButton", foreground=WHITE, background=DANGER_COLOR)
+        style.configure("Danger.TButton", foreground=SURFACE, background=DANGER_COLOR)
         style.map("Danger.TButton", background=[("active", "#BD2130")])
 
-        style.configure("Exit.TButton", foreground=WHITE, background="#000000")
+        style.configure("Exit.TButton", foreground=colors["exit_fg"], background=colors["exit_bg"])
         style.map("Exit.TButton", background=[("active", "#333333")])
 
     def toggle_fullscreen(self, event=None):
@@ -154,7 +181,8 @@ class ProductsApp(tk.Tk):
         self.filter_column = tk.StringVar(value="Nombre")
         filter_combo = ttk.Combobox(search_frame, textvariable=self.filter_column, 
                                     values=["Nombre", "Código", "Precio", "Inventario"], 
-                                    state="readonly", font=("Arial", 12), width=15)
+                                    state="readonly", font=("Arial", 12), width=15,
+                                    style="TCombobox")
         filter_combo.pack(side=tk.LEFT, padx=5)
         filter_combo.bind("<<ComboboxSelected>>", self.filter_products)
 
