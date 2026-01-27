@@ -4,8 +4,10 @@ import os
 import platform
 import sys
 import tkinter as tk
+from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 import theme_manager
+import backup_manager
 
 # Prevent execution on Windows OS
 if platform.system() == "Windows":
@@ -195,9 +197,32 @@ class SettingsApp(tk.Tk):
 
         main_frame.columnconfigure(1, weight=1)
 
+        # Data Tools section
+        tools_row = len(fields)
+        ttk.Label(main_frame, text="Respaldo de Datos:", font=("Arial", 16, "bold")).grid(
+            row=tools_row, column=0, sticky="w", padx=10, pady=15
+        )
+
+        tools_frame = ttk.Frame(main_frame)
+        tools_frame.grid(row=tools_row, column=1, sticky="ew", padx=10, pady=15)
+
+        ttk.Button(
+            tools_frame,
+            text="Crear Respaldo",
+            command=self.run_backup,
+            style="Accent.TButton",
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        ttk.Button(
+            tools_frame,
+            text="Restaurar Respaldo",
+            command=self.run_restore,
+            style="Accent.TButton",
+        ).pack(side=tk.LEFT)
+
         # Buttons frame
         buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.grid(row=len(fields), column=0, columnspan=2, pady=30)
+        buttons_frame.grid(row=tools_row + 1, column=0, columnspan=2, pady=30)
         buttons_frame.columnconfigure(0, weight=1)
         buttons_frame.columnconfigure(1, weight=1)
 
@@ -251,6 +276,41 @@ class SettingsApp(tk.Tk):
                     widget.config(text=self.settings[key] or "No seleccionado")
                 elif isinstance(widget, tk.BooleanVar):
                     widget.set(self.settings[key])
+
+    def run_backup(self):
+        filename = f"respaldo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        dest_path = filedialog.asksaveasfilename(
+            title="Guardar Respaldo",
+            initialfile=filename,
+            defaultextension=".zip",
+            filetypes=[("Archivos ZIP", "*.zip")]
+        )
+        if dest_path:
+            success, message = backup_manager.create_backup(self.base_dir, dest_path)
+            if success:
+                messagebox.showinfo("Éxito", message)
+            else:
+                messagebox.showerror("Error", message)
+
+    def run_restore(self):
+        if not messagebox.askyesno("Confirmar Restauración",
+            "¿Está seguro de que desea restaurar un respaldo? Esto sobrescribirá todos sus datos actuales."):
+            return
+
+        src_path = filedialog.askopenfilename(
+            title="Seleccionar Respaldo",
+            filetypes=[("Archivos ZIP", "*.zip")]
+        )
+        if src_path:
+            success, message = backup_manager.restore_backup(self.base_dir, src_path)
+            if success:
+                messagebox.showinfo("Éxito", message)
+                # Reload settings to reflect changes immediately in current window
+                self.settings = self.load_settings()
+                self.apply_loaded_settings()
+                self.create_styles() # Refresh theme
+            else:
+                messagebox.showerror("Error", message)
 
     def save_settings(self):
         settings = {}
