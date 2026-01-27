@@ -93,6 +93,16 @@ class SettingsApp(tk.Tk):
         )
         style.map("Exit.TButton", background=[("active", "#333333")])
 
+        # Gray scale style for Backup/Restore buttons
+        style.configure(
+            "Backup.TButton",
+            foreground=WHITE,
+            background="#6c757d",
+            font=("Arial", 12, "bold"),
+            padding=5,
+        )
+        style.map("Backup.TButton", background=[("active", "#5a6268")])
+
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode with F11."""
         self.is_fullscreen = not self.is_fullscreen
@@ -174,14 +184,16 @@ class SettingsApp(tk.Tk):
             tools_frame,
             text="Crear Respaldo",
             command=self.run_backup,
-            style="Accent.TButton",
+            style="Backup.TButton",
+            width=20
         ).pack(side=tk.LEFT, padx=(0, 10))
 
         ttk.Button(
             tools_frame,
             text="Restaurar Respaldo",
             command=self.run_restore,
-            style="Accent.TButton",
+            style="Backup.TButton",
+            width=20
         ).pack(side=tk.LEFT)
 
         # Buttons frame
