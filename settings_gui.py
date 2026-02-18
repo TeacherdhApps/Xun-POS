@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import sys
+import zipfile
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -46,6 +47,7 @@ class SettingsApp(tk.Tk):
         TEXT_COLOR = "#212529"
         ACCENT_COLOR = "#007BFF"
         SUCCESS_COLOR = "#28A745"
+        DANGER_COLOR = "#DC3545"
         WHITE = "#FFFFFF"
         BLACK = "#1A1A1A"
 
@@ -58,7 +60,7 @@ class SettingsApp(tk.Tk):
             foreground=TEXT_COLOR,
             font=("Arial", 16, "bold"),
         )
-        style.configure("TButton", font=("Arial", 14, "bold"), padding=12)
+        style.configure("TButton", font=("Arial", 12, "bold"), padding=10)
         style.map(
             "TButton",
             background=[("active", "#EAEAEA")],
@@ -69,27 +71,21 @@ class SettingsApp(tk.Tk):
         )
 
         # Custom Button styles
-        style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Accent.TButton", background=[("active", "#0056b3")])
+        style.configure("Blue.TButton", foreground=WHITE, background=ACCENT_COLOR)
+        style.map("Blue.TButton", background=[("active", "#0056b3")])
 
-        style.configure(
-            "Success.TButton",
-            foreground=WHITE,
-            background=SUCCESS_COLOR,
-            font=("Arial", 16, "bold"),
-            padding=15,
-        )
-        style.map("Success.TButton", background=[("active", "#218838")])
+        style.configure("Red.TButton", foreground=WHITE, background=DANGER_COLOR)
+        style.map("Red.TButton", background=[("active", "#bd2130")])
 
-        # Black Exit button
-        style.configure(
-            "Exit.TButton",
-            foreground=WHITE,
-            background="#000000",
-            font=("Arial", 16, "bold"),
-            padding=15,
-        )
-        style.map("Exit.TButton", background=[("active", "#333333")])
+        style.configure("Green.TButton", foreground=WHITE, background=SUCCESS_COLOR)
+        style.map("Green.TButton", background=[("active", "#218838")])
+
+        style.configure("Black.TButton", foreground=WHITE, background="#000000")
+        style.map("Black.TButton", background=[("active", "#333333")])
+
+        # Small Accent style for the "Seleccionar..." button
+        style.configure("SmallAccent.TButton", font=("Arial", 10, "bold"), padding=5, foreground=WHITE, background=ACCENT_COLOR)
+        style.map("SmallAccent.TButton", background=[("active", "#0056b3")])
 
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode with F11."""
@@ -148,7 +144,7 @@ class SettingsApp(tk.Tk):
                     self.logo_frame,
                     text="Seleccionar...",
                     command=self.select_logo,
-                    style="Accent.TButton",
+                    style="SmallAccent.TButton",
                 )
                 logo_button.pack(side=tk.RIGHT)
             else:
@@ -164,24 +160,44 @@ class SettingsApp(tk.Tk):
         buttons_frame.grid(row=len(fields), column=0, columnspan=2, pady=30)
         buttons_frame.columnconfigure(0, weight=1)
         buttons_frame.columnconfigure(1, weight=1)
+        buttons_frame.columnconfigure(2, weight=1)
+        buttons_frame.columnconfigure(3, weight=1)
 
         # Save button
         save_button = ttk.Button(
             buttons_frame,
-            text="Guardar Configuración",
+            text="Guardar",
             command=self.save_settings,
-            style="Success.TButton",
+            style="Blue.TButton",
         )
-        save_button.grid(row=0, column=0, padx=10, sticky="ew")
+        save_button.grid(row=0, column=0, padx=5, sticky="ew")
+
+        # Export button
+        export_button = ttk.Button(
+            buttons_frame,
+            text="Exportar",
+            command=self.export_data,
+            style="Red.TButton",
+        )
+        export_button.grid(row=0, column=1, padx=5, sticky="ew")
+
+        # Import button
+        import_button = ttk.Button(
+            buttons_frame,
+            text="Importar",
+            command=self.import_data,
+            style="Green.TButton",
+        )
+        import_button.grid(row=0, column=2, padx=5, sticky="ew")
 
         # Exit button with F12
         exit_button = ttk.Button(
             buttons_frame,
             text="F12 - Salir",
             command=self.exit_app,
-            style="Exit.TButton",
+            style="Black.TButton",
         )
-        exit_button.grid(row=0, column=1, padx=10, sticky="ew")
+        exit_button.grid(row=0, column=3, padx=5, sticky="ew")
 
         # Bind F12 key
         self.bind("<F12>", lambda e: self.exit_app())
@@ -204,6 +220,62 @@ class SettingsApp(tk.Tk):
         )
         if file_path:
             self.entries["logo_path"].config(text=file_path)
+
+    def export_data(self):
+        """Export all data files to a zip file."""
+        files_to_export = [
+            "productos.csv",
+            "ventas.csv",
+            "flujo_caja.csv",
+            "settings.json"
+        ]
+        
+        save_path = filedialog.asksaveasfilename(
+            defaultextension=".zip",
+            filetypes=[("Zip files", "*.zip")],
+            title="Exportar Datos como..."
+        )
+        
+        if not save_path:
+            return
+
+        try:
+            with zipfile.ZipFile(save_path, 'w') as zipf:
+                for file in files_to_export:
+                    file_path = os.path.join(self.base_dir, file)
+                    if os.path.exists(file_path):
+                        zipf.write(file_path, arcname=file)
+            
+            messagebox.showinfo("Éxito", f"Datos exportados correctamente en:\n{save_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudieron exportar los datos: {e}")
+
+    def import_data(self):
+        """Import data files from a zip file."""
+        import_path = filedialog.askopenfilename(
+            filetypes=[("Zip files", "*.zip")],
+            title="Seleccionar archivo de datos para importar"
+        )
+        
+        if not import_path:
+            return
+
+        confirm = messagebox.askyesno(
+            "Confirmar Importación",
+            "Esta acción reemplazará los datos actuales (productos, ventas, ajustes). ¿Desea continuar?"
+        )
+        
+        if not confirm:
+            return
+
+        try:
+            with zipfile.ZipFile(import_path, 'r') as zipf:
+                zipf.extractall(self.base_dir)
+            
+            self.load_settings() # Refresh UI with new settings
+            messagebox.showinfo("Éxito", "Datos importados correctamente. Por favor, reinicie la aplicación principal si está abierta.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudieron importar los datos: {e}")
 
     def load_settings(self):
         if not os.path.exists(self.settings_file):
