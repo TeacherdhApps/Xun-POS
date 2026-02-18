@@ -298,7 +298,7 @@ class POS_GUI(tk.Tk):
         style.configure(
             "Treeview",
             font=("Arial", 16),
-            rowheight=35,
+            rowheight=40,
             background=WHITE,
             fieldbackground=WHITE,
             foreground=TEXT_COLOR,
@@ -306,10 +306,25 @@ class POS_GUI(tk.Tk):
         style.map("Treeview", background=[("selected", ACCENT_COLOR)])
         style.configure(
             "Treeview.Heading",
-            font=("Arial", 16, "bold"),
+            font=("Arial", 14, "bold"),
             background=BG_COLOR,
             foreground=BLACK,
         )
+
+        # Treeview button-like cell styles
+        style.configure(
+            "Treeview.Button",
+            font=("Arial", 18, "bold"),
+            rowheight=40,
+            background=WHITE,
+            fieldbackground=WHITE,
+        )
+        
+        # Tag configurations for +/- buttons
+        self.tree_plus_tag = "plus_btn"
+        self.tree_minus_tag = "minus_btn"
+        self.tree_qty_tag = "qty_cell"
+        self.tree_low_stock_tag = "low_stock"
 
         # Custom Label styles
         style.configure(
@@ -352,6 +367,25 @@ class POS_GUI(tk.Tk):
 
         style.configure("Danger.TButton", foreground=WHITE, background=DANGER_COLOR)
         style.map("Danger.TButton", background=[("active", "#BD2130")])
+
+        # Custom style for larger Success and Danger buttons
+        style.configure(
+            "Large.Success.TButton",
+            foreground=WHITE,
+            background=SUCCESS_COLOR,
+            font=("Arial", 18, "bold"),
+            padding=[20, 15],
+        )
+        style.map("Large.Success.TButton", background=[("active", "#1E7E34")])
+
+        style.configure(
+            "Large.Danger.TButton",
+            foreground=WHITE,
+            background=DANGER_COLOR,
+            font=("Arial", 18, "bold"),
+            padding=[20, 15],
+        )
+        style.map("Large.Danger.TButton", background=[("active", "#BD2130")])
 
         # Custom style for larger Accent buttons
         style.configure(
@@ -545,23 +579,37 @@ class POS_GUI(tk.Tk):
         tree_frame = ttk.Frame(middle_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True)
 
+        # Add columns for +/- buttons
         self.tree = ttk.Treeview(
             tree_frame,
-            columns=("barcode", "name", "qty", "price", "total"),
+            columns=("barcode", "name", "minus", "qty", "plus", "price", "total"),
             show="headings",
             height=8,
         )
-        self.tree.tag_configure("low_stock", background="red")
+        
+        # Configure tags for button-like appearance
+        self.tree.tag_configure(self.tree_minus_tag, background="#FFCDD2", font=("Arial", 18, "bold"))
+        self.tree.tag_configure(self.tree_plus_tag, background="#C8E6C9", font=("Arial", 18, "bold"))
+        self.tree.tag_configure(self.tree_qty_tag, background="#FFF9C4", font=("Arial", 16, "bold"))
+        self.tree.tag_configure(self.tree_low_stock_tag, background="#FFCDD2")
+        
+        # Column headers
         self.tree.heading("barcode", text="Código")
         self.tree.heading("name", text="Producto")
-        self.tree.heading("qty", text="Cant. +/-")
+        self.tree.heading("minus", text=" − ")
+        self.tree.heading("qty", text="Cant.")
+        self.tree.heading("plus", text=" + ")
         self.tree.heading("price", text="Precio Unit")
         self.tree.heading("total", text="Total")
-        self.tree.column("barcode", anchor=tk.W, width=100, minwidth=80)
-        self.tree.column("name", anchor=tk.W, width=300, minwidth=200)
-        self.tree.column("qty", anchor=tk.CENTER, width=80, minwidth=60)
-        self.tree.column("price", anchor=tk.E, width=100, minwidth=80)
-        self.tree.column("total", anchor=tk.E, width=120, minwidth=100)
+        
+        # Column widths and alignment
+        self.tree.column("barcode", anchor=tk.W, width=90, minwidth=70)
+        self.tree.column("name", anchor=tk.W, width=250, minwidth=180)
+        self.tree.column("minus", anchor=tk.CENTER, width=45, minwidth=40, stretch=False)
+        self.tree.column("qty", anchor=tk.CENTER, width=60, minwidth=50, stretch=False)
+        self.tree.column("plus", anchor=tk.CENTER, width=45, minwidth=40, stretch=False)
+        self.tree.column("price", anchor=tk.E, width=95, minwidth=80)
+        self.tree.column("total", anchor=tk.E, width=110, minwidth=90)
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(
@@ -571,7 +619,7 @@ class POS_GUI(tk.Tk):
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Bind selection for delete
+        # Bind events
         self.tree.bind("<Delete>", lambda e: self.delete_item())
         self.tree.bind("<Up>", lambda e: self.navigate_tree("up"))
         self.tree.bind("<Down>", lambda e: self.navigate_tree("down"))
@@ -614,6 +662,13 @@ class POS_GUI(tk.Tk):
 
         ttk.Button(
             bottom_frame,
+            text="General",
+            command=self.open_general_product_window,
+            style="Accent.TButton",
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            bottom_frame,
             text="Entradas",
             command=self.open_entry_window,
             style="Success.TButton",
@@ -647,6 +702,10 @@ class POS_GUI(tk.Tk):
         script_path = os.path.join(self.base_dir, "reports_gui.py")
         if os.path.exists(script_path):
             subprocess.Popen([sys.executable, script_path])
+
+    def open_general_product_window(self):
+        """Open window to add a general product."""
+        GeneralProductWindow(self)
 
     def open_entry_window(self):
         """Open entry window for cash inflow."""
@@ -686,8 +745,8 @@ class POS_GUI(tk.Tk):
         if self.search_timer:
             self.after_cancel(self.search_timer)
         
-        # Schedule new search in 5 seconds (5000ms)
-        self.search_timer = self.after(5000, self.perform_search)
+        # Schedule new search in 3000ms for responsiveness
+        self.search_timer = self.after(3000, self.perform_search)
 
     def perform_search(self):
         """Actual search logic executed after debounce."""
@@ -709,16 +768,35 @@ class POS_GUI(tk.Tk):
         suggestions = []
         terms = search_term.split()
 
+        # Score-based search for 1000+ products
+        scored_suggestions = []
         for code, product in self.products.items():
-            # Search in both name and code
-            search_target = f"{product['nombre']} {code}".lower()
-            if all(term in search_target for term in terms):
-                suggestions.append(f"{product['nombre']} ({code})")
+            name = product['nombre'].lower()
+            code_lower = code.lower()
+            
+            # Check if all terms match
+            if all(term in name or term in code_lower for term in terms):
+                # Scoring: 
+                # 3 points: name starts with the first term
+                # 2 points: code starts with the first term
+                # 1 point: match anywhere (default)
+                score = 1
+                first_term = terms[0]
+                if name.startswith(first_term):
+                    score = 3
+                elif code_lower.startswith(first_term):
+                    score = 2
+                
+                scored_suggestions.append((score, f"{product['nombre']} ({code})"))
+
+        # Sort by score descending and then alphabetically
+        scored_suggestions.sort(key=lambda x: (-x[0], x[1]))
+        suggestions = [s[1] for s in scored_suggestions]
 
         if suggestions:
             # Only update if different to avoid flickering
             current_values = self.product_combobox["values"]
-            new_values = tuple(suggestions[:15]) # Limit to 15
+            new_values = tuple(suggestions[:30]) # Limit to 30 for better usability with many items
             
             if current_values != new_values:
                 self.product_combobox["values"] = new_values
@@ -821,6 +899,14 @@ class POS_GUI(tk.Tk):
             self.last_added_barcode = barcode  # Update last added product
             self.update_sale_list()
             self.update_total()
+            
+            # Select and see the added/updated item
+            for item_id in self.tree.get_children():
+                if self.tree.item(item_id, "tags") and self.tree.item(item_id, "tags")[0] == barcode:
+                    self.tree.selection_set(item_id)
+                    self.tree.see(item_id)
+                    break
+                    
             self.product_combobox.delete(0, tk.END)
             self.product_combobox.focus()
         else:
@@ -841,35 +927,48 @@ class POS_GUI(tk.Tk):
             self.product_combobox.focus_set()
 
     def on_tree_click(self, event):
-        """Handle click on treeview to edit quantity."""
+        """Handle click on treeview for +/- buttons and quantity editing."""
         region = self.tree.identify("region", event.x, event.y)
         if region == "cell":
             column = self.tree.identify_column(event.x)
-            # Assuming 'qty' is the 3rd column (index 2), so '#3'
+            item_id = self.tree.identify_row(event.y)
+            
+            if not item_id:
+                return
+
+            # Get barcode from tags
+            tags = self.tree.item(item_id, "tags")
+            if not tags:
+                return
+            barcode = tags[0]
+
+            # Handle minus button (column #3)
             if column == "#3":
-                item_id = self.tree.identify_row(event.y)
-                if not item_id:
-                    return
-
-                # Get barcode from tags
-                barcode = self.tree.item(item_id, "tags")[0]
-
+                self.decrement_quantity(barcode)
+                return "break"
+            
+            # Handle plus button (column #5)
+            elif column == "#5":
+                self.increment_quantity(barcode)
+                return "break"
+            
+            # Handle quantity column for manual editing (column #4)
+            elif column == "#4":
                 bbox = self.tree.bbox(item_id, column)
                 if not bbox:
                     return
 
-                # Create Combobox
-                # Using 1-10 range as a reasonable default that covers 1, 2, 3
+                # Create Combobox for quantity selection
                 entry_edit = ttk.Combobox(
-                    self.tree, values=[str(i) for i in range(1, 11)], font=("Arial", 14), state="readonly", style="Qty.TCombobox"
+                    self.tree, values=[str(i) for i in range(1, 11)], 
+                    font=("Arial", 14), state="normal", style="Qty.TCombobox"
                 )
                 entry_edit.place(x=bbox[0], y=bbox[1], width=bbox[2], height=bbox[3])
 
                 # Set current value
                 current_qty = self.sale_items[barcode]["qty"]
                 if current_qty > 10:
-                     # If existing qty is > 10, add it to values temporarily so it displays correctly
-                     entry_edit['values'] = list(entry_edit['values']) + [str(current_qty)]
+                    entry_edit['values'] = list(entry_edit['values']) + [str(current_qty)]
                 
                 entry_edit.set(current_qty)
 
@@ -888,8 +987,27 @@ class POS_GUI(tk.Tk):
                 entry_edit.bind("<<ComboboxSelected>>", save_edit)
                 entry_edit.bind("<FocusOut>", lambda e: entry_edit.destroy())
                 entry_edit.focus_set()
-                # Simulate drop down immediately
                 entry_edit.event_generate('<Button-1>')
+
+    def increment_quantity(self, barcode):
+        """Increment quantity by 1."""
+        if barcode in self.sale_items:
+            self.sale_items[barcode]["qty"] += 1
+            self.update_sale_list()
+            self.update_total()
+
+    def decrement_quantity(self, barcode):
+        """Decrement quantity by 1, remove if reaches 0."""
+        if barcode in self.sale_items:
+            if self.sale_items[barcode]["qty"] > 1:
+                self.sale_items[barcode]["qty"] -= 1
+                self.update_sale_list()
+                self.update_total()
+            else:
+                # Remove item when quantity reaches 0
+                del self.sale_items[barcode]
+                self.update_sale_list()
+                self.update_total()
 
     def navigate_tree(self, direction):
         """Navigate treeview with arrow keys."""
@@ -928,19 +1046,27 @@ class POS_GUI(tk.Tk):
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        # Insert current items
+        # Insert current items with +/- buttons
         for barcode, item in self.sale_items.items():
             total_price = item["qty"] * item["precio"]
-            tags = (barcode,)
-            if self.products.get(barcode, {}).get("inventario", 0) <= 5:
-                tags = (barcode, "low_stock")
+            
+            # Determine if low stock
+            is_low_stock = self.products.get(barcode, {}).get("inventario", 0) <= 5
+            
+            # Build tags list
+            tags = [barcode]
+            if is_low_stock:
+                tags.append(self.tree_low_stock_tag)
+            
             self.tree.insert(
                 "",
                 tk.END,
                 values=(
                     barcode,
                     item["nombre"],
+                    " − ",  # Minus button
                     item["qty"],
+                    " + ",  # Plus button
                     f"${item['precio']:.2f}",
                     f"${total_price:.2f}",
                 ),
@@ -1085,7 +1211,7 @@ class PaymentWindow(tk.Toplevel):
         return """<!DOCTYPE html>
 <html lang=\"es">
 <head>
-    <meta charset=\"UTF-8">
+    <meta charset=\"UTF-8\">
     <title>Recibo de Venta</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 20px; font-size: 14px; max-width: 300px; margin: auto; }
@@ -1272,6 +1398,113 @@ class PaymentWindow(tk.Toplevel):
 
     def on_closing(self):
         """Handle window closing."""
+        self.destroy()
+
+
+class GeneralProductWindow(tk.Toplevel):
+    """Window for adding a general product (not in database)."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.title("Producto General")
+        self.geometry("500x520")
+        self.resizable(False, False)
+        self.configure(bg="#f0f0f0")
+        self.transient(parent)
+        self.grab_set()
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        main_frame = ttk.Frame(self, padding="30")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(main_frame, text="Nombre del Producto:", font=("Arial", 18, "bold")).pack(pady=(0, 5), anchor=tk.W)
+        self.name_entry = ttk.Entry(main_frame, font=("Arial", 18))
+        self.name_entry.pack(fill=tk.X, pady=(0, 20))
+        self.name_entry.focus()
+
+        ttk.Label(main_frame, text="Precio:", font=("Arial", 18, "bold")).pack(pady=(0, 5), anchor=tk.W)
+        self.price_entry = ttk.Entry(main_frame, font=("Arial", 18))
+        self.price_entry.pack(fill=tk.X, pady=(0, 15))
+
+        ttk.Label(main_frame, text="Cantidad:", font=("Arial", 18, "bold")).pack(pady=(0, 5), anchor=tk.W)
+        self.qty_entry = ttk.Entry(main_frame, font=("Arial", 18))
+        self.qty_entry.insert(0, "1")
+        self.qty_entry.pack(fill=tk.X, pady=(0, 15))
+
+        # Total section
+        self.total_label = ttk.Label(main_frame, text="Total: $0.00", font=("Arial", 24, "bold"), foreground="#28A745")
+        self.total_label.pack(pady=(10, 20))
+
+        # Update total when entries change
+        self.qty_entry.bind("<KeyRelease>", self.update_summary)
+        self.price_entry.bind("<KeyRelease>", self.update_summary)
+
+        # Buttons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=10)
+
+        self.confirm_button = ttk.Button(
+            btn_frame,
+            text="Confirmar (Enter)",
+            command=self.confirm,
+            style="Success.TButton"
+        )
+        self.confirm_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+
+        self.cancel_button = ttk.Button(
+            btn_frame,
+            text="Cancelar (Esc)",
+            command=self.destroy,
+            style="Danger.TButton"
+        )
+        self.cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 0))
+
+        # Binds
+        self.bind("<Return>", lambda e: self.confirm())
+        self.bind("<KP_Enter>", lambda e: self.confirm())
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def update_summary(self, event=None):
+        try:
+            qty_text = self.qty_entry.get().strip()
+            price_text = self.price_entry.get().strip()
+            qty = float(qty_text) if qty_text else 0
+            price = float(price_text) if price_text else 0
+            total = qty * price
+            self.total_label.config(text=f"Total: ${total:.2f}")
+        except ValueError:
+            self.total_label.config(text="Valores inválidos")
+
+    def confirm(self):
+        name = self.name_entry.get().strip()
+        qty_str = self.qty_entry.get().strip()
+        price_str = self.price_entry.get().strip()
+
+        if not name or not qty_str or not price_str:
+            messagebox.showwarning("Error", "Todos los campos son obligatorios.", parent=self)
+            return
+
+        try:
+            qty = float(qty_str)
+            price = float(price_str)
+        except ValueError:
+            messagebox.showerror("Error", "Cantidad y Precio deben ser números.", parent=self)
+            return
+
+        # Generate a unique barcode for this general product
+        barcode = f"GEN-{int(datetime.now().timestamp() * 1000)}"
+        
+        self.parent.sale_items[barcode] = {
+            "nombre": name,
+            "precio": price,
+            "qty": qty,
+        }
+
+        self.parent.update_sale_list()
+        self.parent.update_total()
         self.destroy()
 
 
