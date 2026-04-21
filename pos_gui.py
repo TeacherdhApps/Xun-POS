@@ -1534,24 +1534,25 @@ class EntryExitWindow(tk.Toplevel):
         self.concept_entry = ttk.Entry(self, font=("Arial", 14))
         self.concept_entry.pack(pady=5, padx=20, fill=tk.X)
         
-        # Bind Enter keys to save
+        # Bind keys to save or cancel
         self.bind("<Return>", lambda e: self.save())
         self.bind("<KP_Enter>", lambda e: self.save())
+        self.bind("<Escape>", lambda e: self.destroy())
 
         ttk.Button(self, text="Ent - Guardar", command=self.save, style="Success.TButton").pack(pady=20)
 
     def save(self):
-        amount_str = self.amount_entry.get()
-        concept = self.concept_entry.get()
+        amount_str = self.amount_entry.get().strip()
+        concept = self.concept_entry.get().strip()
         
         if not amount_str or not concept:
-            messagebox.showwarning("Error", "Todos los campos son obligatorios.")
+            messagebox.showwarning("Error", "Todos los campos son obligatorios.", parent=self)
             return
             
         try:
             amount = float(amount_str)
         except ValueError:
-            messagebox.showerror("Error", "Monto inválido.")
+            messagebox.showerror("Error", "Monto inválido.", parent=self)
             return
             
         if "Entrada" in self.title():
@@ -1560,8 +1561,10 @@ class EntryExitWindow(tk.Toplevel):
             t_type = "Salida"
             
         self.parent.log_cash_flow(t_type, amount, concept)
-        messagebox.showinfo("Éxito", "Transacción registrada.")
+        
+        # Close window FIRST, then show message (or just close for faster workflow)
         self.destroy()
+        messagebox.showinfo("Éxito", "Transacción registrada.")
 
 
 if __name__ == "__main__":
