@@ -52,9 +52,11 @@ class ReportsApp(tk.Tk):
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
         self.settings = self.load_settings()
+        self._initialized = False
         self.create_styles()
         self.init_sales_log()
         self.create_widgets()
+        self._initialized = True
         self.load_report_for_date()
 
         # Bind F11 for fullscreen toggle
@@ -140,31 +142,46 @@ class ReportsApp(tk.Tk):
 
         # Custom styles
         style.configure("Big.TButton", font=("Arial", 12, "bold"), padding=8)
+        
+        # Action buttons uniform style
+        ACTION_FONT = ("Arial", 14, "bold")
+        ACTION_PADDING = 12
+
         style.configure(
             "Print.TButton",
             foreground=WHITE,
             background=SUCCESS_COLOR,
-            font=("Arial", 14, "bold"),
-            padding=12,
+            font=ACTION_FONT,
+            padding=ACTION_PADDING,
         )
         style.map("Print.TButton", background=[("active", "#218838")])
-        style.configure(
-            "Exit.TButton",
-            foreground=WHITE,
-            background="#000000",
-            font=("Arial", 14, "bold"),
-            padding=12,
-        )
-        style.map("Exit.TButton", background=[("active", "#333333")])
 
         style.configure(
             "Modify.TButton",
             foreground=WHITE,
             background=ACCENT_COLOR,
-            font=("Arial", 14, "bold"),
-            padding=12,
+            font=ACTION_FONT,
+            padding=ACTION_PADDING,
         )
         style.map("Modify.TButton", background=[("active", "#0056b3")])
+
+        style.configure(
+            "Danger.Action.TButton",
+            foreground=WHITE,
+            background=DANGER_COLOR,
+            font=ACTION_FONT,
+            padding=ACTION_PADDING,
+        )
+        style.map("Danger.Action.TButton", background=[("active", "#c82333")])
+
+        style.configure(
+            "Exit.TButton",
+            foreground=WHITE,
+            background="#000000",
+            font=ACTION_FONT,
+            padding=ACTION_PADDING,
+        )
+        style.map("Exit.TButton", background=[("active", "#333333")])
 
         style.configure(
             "Total.TLabel",
@@ -240,7 +257,8 @@ class ReportsApp(tk.Tk):
         cal_frame.columnconfigure(4, weight=0)  # Spacer
         cal_frame.columnconfigure(5, weight=1)  # Print button
         cal_frame.columnconfigure(6, weight=1)  # Modify button
-        cal_frame.columnconfigure(7, weight=1)  # Exit button
+        cal_frame.columnconfigure(7, weight=1)  # Delete button
+        cal_frame.columnconfigure(8, weight=1)  # Exit button
 
         # Row 0: Calendar widgets and buttons
         ttk.Label(cal_frame, text="Desde:", font=("Arial", 14, "bold")).grid(
@@ -296,14 +314,22 @@ class ReportsApp(tk.Tk):
 
         ttk.Button(
             cal_frame,
+            text="F7 - Borrar",
+            command=self.delete_cash_flow,
+            style="Danger.Action.TButton",
+        ).grid(row=0, column=7, padx=5, sticky="ew")
+
+        ttk.Button(
+            cal_frame,
             text="F12 - Salir",
             command=self.exit_app,
             style="Exit.TButton",
-        ).grid(row=0, column=7, padx=5, sticky="ew")
+        ).grid(row=0, column=8, padx=5, sticky="ew")
 
         # Bind F2 and F12 keys
         self.bind("<F2>", lambda e: self.print_report())
         self.bind("<F6>", lambda e: self.modify_cash_flow())
+        self.bind("<F7>", lambda e: self.delete_cash_flow())
         self.bind("<F12>", lambda e: self.exit_app())
 
         content_frame = ttk.Frame(main_frame)
@@ -407,7 +433,8 @@ class ReportsApp(tk.Tk):
         self.load_report_for_date()
 
     def on_date_change(self, event):
-        self.load_report_for_date_range()
+        if hasattr(self, "_initialized") and self._initialized:
+            self.load_report_for_date_range()
 
     def date_selected_from_calendar(self, event):
         self.selected_report_date = self.start_cal.get_date()
@@ -501,6 +528,7 @@ class ReportsApp(tk.Tk):
                                     f"${amount:.2f}",
                                     row["concepto"],
                                 ),
+                                tags=(row["fecha_hora"],)
                             )
                             if row["tipo"] == "Entrada":
                                 entries_total += amount
@@ -785,6 +813,8 @@ class ReportsApp(tk.Tk):
         item = self.cash_flow_tree.item(selected[0])
         values = item["values"]
         # values: [time, type, amount, concept]
+        # Use tags to get original ISO timestamp
+        original_iso_time = item["tags"][0] if item["tags"] else None
         
         # Create edit dialog
         edit_window = tk.Toplevel(self)
@@ -839,18 +869,22 @@ class ReportsApp(tk.Tk):
                 rows = []
                 updated = False
                 file_path = os.path.join(self.base_dir, "flujo_caja.csv")
-                
-                # Original time string from the tree view
-                target_time_str = values[0] 
 
                 with open(file_path, "r", encoding="utf-8") as f:
                     reader = csv.DictReader(f)
                     fieldnames = reader.fieldnames
                     for row in reader:
-                        # Reconstruct the display time to match
-                        row_display_time = datetime.fromisoformat(row["fecha_hora"]).strftime("%Y-%m-%d %H:%M:%S")
+                        # Match by original ISO timestamp if available
+                        match = False
+                        if original_iso_time:
+                            if row["fecha_hora"] == original_iso_time:
+                                match = True
+                        else:
+                            row_display_time = datetime.fromisoformat(row["fecha_hora"]).strftime("%Y-%m-%d %H:%M:%S")
+                            if row_display_time == values[0] and row["tipo"] == values[1]:
+                                match = True
                         
-                        if row_display_time == target_time_str and row["tipo"] == values[1]:
+                        if match and not updated:
                              # Update row
                              row["tipo"] = new_type
                              row["monto"] = str(new_amount)
@@ -882,6 +916,106 @@ class ReportsApp(tk.Tk):
         
         ttk.Button(btn_frame, text="Cancelar", command=edit_window.destroy).pack(side=tk.RIGHT, padx=5)
         ttk.Button(btn_frame, text="Guardar", command=save_changes, style="Accent.TButton").pack(side=tk.RIGHT, padx=5)
+
+    def delete_cash_flow(self):
+        """Delete selected cash flow entry."""
+        selected = self.cash_flow_tree.selection()
+        if not selected:
+            messagebox.showwarning(
+                "Seleccionar Elemento",
+                "Por favor, seleccione un movimiento de la lista de Flujo de Caja para borrar."
+            )
+            return
+
+        item = self.cash_flow_tree.item(selected[0])
+        values = item["values"]
+        original_iso_time = item["tags"][0] if item["tags"] else None
+
+        # Custom Spanish Confirmation Dialog
+        confirm_dialog = tk.Toplevel(self)
+        confirm_dialog.title("Confirmar Borrado")
+        confirm_dialog.geometry("450x250")
+        confirm_dialog.resizable(False, False)
+        confirm_dialog.transient(self)
+        confirm_dialog.grab_set()
+        confirm_dialog.configure(bg="#F0F0F0")
+
+        # Center window
+        x = self.winfo_x() + (self.winfo_width() // 2) - 225
+        y = self.winfo_y() + (self.winfo_height() // 2) - 125
+        confirm_dialog.geometry(f"+{x}+{y}")
+
+        ttk.Label(confirm_dialog, text="¿Está seguro de que desea borrar este movimiento?", 
+                  font=("Arial", 12, "bold"), wraplength=400, justify="center").pack(pady=20)
+        
+        details_frame = ttk.Frame(confirm_dialog, padding=10)
+        details_frame.pack(fill=tk.X)
+        
+        details_text = f"Fecha: {values[0]}\nTipo: {values[1]} | Monto: {values[2]}\nConcepto: {values[3]}"
+        ttk.Label(details_frame, text=details_text, font=("Arial", 10), justify="center").pack()
+
+        btn_frame = ttk.Frame(confirm_dialog, padding=20)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.confirm_res = False
+
+        def on_yes():
+            self.confirm_res = True
+            confirm_dialog.destroy()
+
+        def on_no():
+            self.confirm_res = False
+            confirm_dialog.destroy()
+
+        ttk.Button(btn_frame, text="No", command=on_no).pack(side=tk.RIGHT, padx=10)
+        ttk.Button(btn_frame, text="Sí", command=on_yes, style="Accent.TButton").pack(side=tk.RIGHT, padx=10)
+
+        # Binds
+        confirm_dialog.bind("<Return>", lambda e: on_yes())
+        confirm_dialog.bind("<Escape>", lambda e: on_no())
+
+        self.wait_window(confirm_dialog)
+
+        if self.confirm_res:
+            try:
+                rows = []
+                deleted = False
+                file_path = os.path.join(self.base_dir, "flujo_caja.csv")
+
+                with open(file_path, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    fieldnames = reader.fieldnames
+                    for row in reader:
+                        match = False
+                        if original_iso_time:
+                            if row["fecha_hora"] == original_iso_time:
+                                match = True
+                        else:
+                            row_display_time = datetime.fromisoformat(row["fecha_hora"]).strftime("%Y-%m-%d %H:%M:%S")
+                            if row_display_time == values[0] and row["tipo"] == values[1]:
+                                match = True
+
+                        if match and not deleted:
+                            deleted = True
+                            continue # Skip this row to delete it
+                        
+                        rows.append(row)
+
+                if deleted:
+                    with open(file_path, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.DictWriter(f, fieldnames=fieldnames)
+                        writer.writeheader()
+                        writer.writerows(rows)
+                    
+                    self.load_report_for_date()
+                    messagebox.showinfo("Éxito", "Movimiento borrado correctamente")
+                else:
+                    messagebox.showerror("Error", "No se encontró el registro para borrar")
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al borrar: {e}")
+
+
 
     def exit_app(self):
         """Exit the application."""
