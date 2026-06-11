@@ -265,7 +265,7 @@ class LoginSystem:
         # ASCII Art Logo
         print(f"\n{Colors.CYAN}{Colors.BOLD}")
         print("─" * 80)
-        print(f"{Colors.BRIGHT_WHITE}{'Xun-POS':^80}{Colors.RESET}")
+        print(f"{Colors.BRIGHT_WHITE}{'@Xun-POS restaurant':^80}{Colors.RESET}")
         print("─" * 80)
         print(f"{Colors.RESET}")
         print(f"{Colors.WHITE}{'POS gratuito, rápido, ligero y para Linux.'.center(80)}{Colors.RESET}")

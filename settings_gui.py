@@ -101,7 +101,7 @@ class SettingsApp(tk.Tk):
         # Header Info Label
         info_label = ttk.Label(
             title_frame,
-            text="@Xun-POS",
+            text="@Xun-POS restaurant",
             font=("Arial", 8),
             foreground="#666666",
         )

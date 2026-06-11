@@ -44,7 +44,7 @@ class POS_GUI(tk.Tk):
 
         self.settings = self.load_settings()
         self.products = self.load_products()
-        self.active_tickets = {1: {}, 2: {}}
+        self.active_tickets = {i: {} for i in range(1, 11)}
         self.current_ticket_id = 1
         self.sale_items = self.active_tickets[1]  # Dictionary to handle quantities: {codigo: {'nombre': str, 'precio': float, 'cantidad': int}}
         self.last_added_barcode = (
@@ -406,6 +406,16 @@ class POS_GUI(tk.Tk):
         style.configure("Small.Accent.TButton", font=("Arial", 10, "bold"), padding=1, foreground=WHITE, background=ACCENT_COLOR)
         style.map("Small.Accent.TButton", background=[("active", "#0056b3")])
 
+        # Mesa Button styles (larger than Small buttons, but with controlled padding)
+        style.configure("Mesa.TButton", font=("Arial", 14, "bold"), padding=(10, 4))
+        style.map(
+            "Mesa.TButton",
+            background=[("active", "#EAEAEA")],
+            foreground=[("active", BLACK)],
+        )
+        style.configure("Mesa.Accent.TButton", font=("Arial", 14, "bold"), padding=(10, 4), foreground=WHITE, background=ACCENT_COLOR)
+        style.map("Mesa.Accent.TButton", background=[("active", "#0056b3")])
+
         # Black Exit button
         style.configure("Exit.TButton", foreground=WHITE, background="#000000")
         style.map("Exit.TButton", background=[("active", "#333333")])
@@ -419,7 +429,7 @@ class POS_GUI(tk.Tk):
     def create_widgets(self):
         """Create and pack all widgets."""
         # Main layout frames
-        main_frame = ttk.Frame(self, padding="20")
+        main_frame = ttk.Frame(self, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Top menu bar
@@ -453,21 +463,21 @@ class POS_GUI(tk.Tk):
     def _create_menu_bar(self, parent):
         """Create the top menu bar."""
         menu_frame = ttk.Frame(parent)
-        menu_frame.pack(fill=tk.X, pady=(0, 10))
+        menu_frame.pack(fill=tk.X, pady=(0, 5))
 
         # Store info label (Top Right)
         info_label = ttk.Label(
             menu_frame,
-            text="@Xun-POS",
+            text="@Xun-POS restaurant",
             font=("Arial", 8),
             foreground="#666666",
         )
-        info_label.pack(side=tk.RIGHT, anchor=tk.NE, padx=5, pady=5)
+        info_label.pack(side=tk.RIGHT, anchor=tk.NE, padx=5, pady=2)
 
         business_name_label = ttk.Label(
             menu_frame, text=self.settings["business_name"], style="Header.TLabel"
         )
-        business_name_label.pack(side=tk.TOP, pady=(0, 5))
+        business_name_label.pack(side=tk.TOP, pady=(0, 2))
 
         # Frame for date and time
         datetime_frame = ttk.Frame(menu_frame)
@@ -521,12 +531,19 @@ class POS_GUI(tk.Tk):
         for widget in self.tickets_container.winfo_children():
             widget.destroy()
 
+        for c in range(5):
+            self.tickets_container.grid_columnconfigure(c, weight=1)
+        for r in range(2):
+            self.tickets_container.grid_rowconfigure(r, weight=1)
+
         for t_id in sorted(self.active_tickets.keys()):
-            style = "Small.Accent.TButton" if t_id == self.current_ticket_id else "Small.TButton"
+            style = "Mesa.Accent.TButton" if t_id == self.current_ticket_id else "Mesa.TButton"
             
-            btn = ttk.Button(self.tickets_container, text=f"Recibo {t_id}", style=style,
+            btn = ttk.Button(self.tickets_container, text=f"Mesa {t_id}", style=style,
                              command=lambda id=t_id: self.switch_ticket(id))
-            btn.pack(side=tk.LEFT, padx=2)
+            row = (t_id - 1) // 5
+            col = (t_id - 1) % 5
+            btn.grid(row=row, column=col, padx=3, pady=2, sticky="nsew")
 
     def clear_sale(self):
         """Clear the current sale."""
@@ -551,7 +568,7 @@ class POS_GUI(tk.Tk):
     def _create_top_frame(self, parent):
         """Create the top frame for product entry."""
         top_frame = ttk.Frame(parent)
-        top_frame.pack(fill=tk.X, pady=5)  # Reduced pady
+        top_frame.pack(fill=tk.X, pady=2)  # Reduced pady
 
         ttk.Label(
             top_frame,
@@ -628,7 +645,7 @@ class POS_GUI(tk.Tk):
     def _create_bottom_frame(self, parent):
         """Create the bottom frame with actions and total."""
         bottom_frame = ttk.Frame(parent)
-        bottom_frame.pack(fill=tk.X, pady=5)
+        bottom_frame.pack(fill=tk.X, pady=2)
 
         # Ticket Controls (Small buttons) - Moved to TOP
         ticket_frame = ttk.Frame(bottom_frame)
@@ -1392,7 +1409,7 @@ class PaymentWindow(tk.Toplevel):
         """Finalize the sale, clear ticket, and close window."""
         self.parent.log_sale()
         self.parent.update_inventory()
-        self.parent.log_cash_flow("Venta", self.total, f"Venta Recibo #{self.parent.current_ticket_id}")
+        self.parent.log_cash_flow("Venta", self.total, f"Venta Mesa #{self.parent.current_ticket_id}")
         self.parent.clear_sale()
         self.destroy()
 
