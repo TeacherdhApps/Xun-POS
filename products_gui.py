@@ -58,13 +58,13 @@ class ProductsApp(tk.Tk):
         style.theme_use("clam")
 
         # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
+        BG_COLOR = "#F4F6F8"
+        TEXT_COLOR = "#1E293B"
+        ACCENT_COLOR = "#3B82F6"
+        SUCCESS_COLOR = "#10B981"
+        DANGER_COLOR = "#EF4444"
         WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
+        BLACK = "#0F172A"
 
         # General styles
         self.configure(bg=BG_COLOR)
@@ -75,7 +75,7 @@ class ProductsApp(tk.Tk):
         style.configure("TButton", font=("Arial", 14, "bold"), padding=10)
         style.map(
             "TButton",
-            background=[("active", "#EAEAEA")],
+            background=[("active", "#E2E8F0")],
             foreground=[("active", BLACK)],
         )
         style.configure(
@@ -90,7 +90,7 @@ class ProductsApp(tk.Tk):
         style.configure(
             "Treeview",
             font=("Arial", 12),
-            rowheight=40,
+            rowheight=45,
             background=WHITE,
             fieldbackground=WHITE,
             foreground=TEXT_COLOR,
@@ -105,13 +105,13 @@ class ProductsApp(tk.Tk):
 
         # Custom Button styles
         style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Accent.TButton", background=[("active", "#0056b3")])
+        style.map("Accent.TButton", background=[("active", "#2563EB")])
 
         style.configure("Success.TButton", foreground=WHITE, background=SUCCESS_COLOR)
-        style.map("Success.TButton", background=[("active", "#1E7E34")])
+        style.map("Success.TButton", background=[("active", "#059669")])
 
         style.configure("Danger.TButton", foreground=WHITE, background=DANGER_COLOR)
-        style.map("Danger.TButton", background=[("active", "#BD2130")])
+        style.map("Danger.TButton", background=[("active", "#DC2626")])
 
         style.configure("Exit.TButton", foreground=WHITE, background="#000000")
         style.map("Exit.TButton", background=[("active", "#333333")])
@@ -132,7 +132,7 @@ class ProductsApp(tk.Tk):
         
         info_label = ttk.Label(
             header_frame,
-            text="@Xun-POS",
+            text="@Xun-POS restaurant",
             font=("Arial", 8),
             foreground="#666666",
         )
