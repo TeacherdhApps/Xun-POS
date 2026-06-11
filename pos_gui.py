@@ -249,7 +249,6 @@ class POS_GUI(tk.Tk):
             messagebox.showerror(
                 "Error de Datos", f"Error leyendo datos de productos: {e}"
             )
-            self.destroy()
         return products
 
     def create_styles(self):
@@ -258,14 +257,14 @@ class POS_GUI(tk.Tk):
         style.theme_use("clam")
 
         # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        SECONDARY_TEXT_COLOR = "#6C757D"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
+        BG_COLOR = "#F4F6F8"
+        TEXT_COLOR = "#1E293B"
+        SECONDARY_TEXT_COLOR = "#64748B"
+        ACCENT_COLOR = "#3B82F6"
+        SUCCESS_COLOR = "#10B981"
+        DANGER_COLOR = "#EF4444"
         WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
+        BLACK = "#0F172A"
 
         # Combobox Listbox Styling (Global for Tcl/Tk)
         self.option_add("*TCombobox*Listbox.font", ("Arial", 18))
@@ -290,7 +289,7 @@ class POS_GUI(tk.Tk):
         style.configure("TButton", font=("Arial", 12, "bold"), padding=5)
         style.map(
             "TButton",
-            background=[("active", "#EAEAEA")],
+            background=[("active", "#E2E8F0")],
             foreground=[("active", BLACK)],
         )
 
@@ -298,7 +297,7 @@ class POS_GUI(tk.Tk):
         style.configure(
             "Treeview",
             font=("Arial", 16),
-            rowheight=40,
+            rowheight=45,
             background=WHITE,
             fieldbackground=WHITE,
             foreground=TEXT_COLOR,
@@ -315,7 +314,7 @@ class POS_GUI(tk.Tk):
         style.configure(
             "Treeview.Button",
             font=("Arial", 18, "bold"),
-            rowheight=40,
+            rowheight=45,
             background=WHITE,
             fieldbackground=WHITE,
         )
@@ -332,6 +331,7 @@ class POS_GUI(tk.Tk):
             font=("Arial", 48, "bold"),
             background=BG_COLOR,
             foreground=BLACK,
+            padding=(0, 0, 0, 10),
         )
         style.configure(
             "Header.TLabel",
@@ -360,13 +360,13 @@ class POS_GUI(tk.Tk):
 
         # Custom Button styles
         style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Accent.TButton", background=[("active", "#0056b3")])
+        style.map("Accent.TButton", background=[("active", "#2563EB")])
 
         style.configure("Success.TButton", foreground=WHITE, background=SUCCESS_COLOR)
-        style.map("Success.TButton", background=[("active", "#1E7E34")])
+        style.map("Success.TButton", background=[("active", "#059669")])
 
         style.configure("Danger.TButton", foreground=WHITE, background=DANGER_COLOR)
-        style.map("Danger.TButton", background=[("active", "#BD2130")])
+        style.map("Danger.TButton", background=[("active", "#DC2626")])
 
         # Custom style for larger Success and Danger buttons
         style.configure(
@@ -376,7 +376,7 @@ class POS_GUI(tk.Tk):
             font=("Arial", 18, "bold"),
             padding=[20, 15],
         )
-        style.map("Large.Success.TButton", background=[("active", "#1E7E34")])
+        style.map("Large.Success.TButton", background=[("active", "#059669")])
 
         style.configure(
             "Large.Danger.TButton",
@@ -385,7 +385,7 @@ class POS_GUI(tk.Tk):
             font=("Arial", 18, "bold"),
             padding=[20, 15],
         )
-        style.map("Large.Danger.TButton", background=[("active", "#BD2130")])
+        style.map("Large.Danger.TButton", background=[("active", "#DC2626")])
 
         # Custom style for larger Accent buttons
         style.configure(
@@ -395,7 +395,7 @@ class POS_GUI(tk.Tk):
             font=("Arial", 16, "bold"),  # Larger font
             padding=[20, 15],  # More padding (horizontal, vertical)
         )
-        style.map("Large.Accent.TButton", background=[("active", "#0056b3")])
+        style.map("Large.Accent.TButton", background=[("active", "#2563EB")])
 
         # Custom style for dark grey buttons
         style.configure("DarkGrey.TButton", foreground=WHITE, background=TEXT_COLOR)
@@ -404,17 +404,17 @@ class POS_GUI(tk.Tk):
         # Small Button style
         style.configure("Small.TButton", font=("Arial", 10), padding=1)
         style.configure("Small.Accent.TButton", font=("Arial", 10, "bold"), padding=1, foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Small.Accent.TButton", background=[("active", "#0056b3")])
+        style.map("Small.Accent.TButton", background=[("active", "#2563EB")])
 
         # Mesa Button styles (larger than Small buttons, but with controlled padding)
         style.configure("Mesa.TButton", font=("Arial", 14, "bold"), padding=(10, 4))
         style.map(
             "Mesa.TButton",
-            background=[("active", "#EAEAEA")],
+            background=[("active", "#E2E8F0")],
             foreground=[("active", BLACK)],
         )
         style.configure("Mesa.Accent.TButton", font=("Arial", 14, "bold"), padding=(10, 4), foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Mesa.Accent.TButton", background=[("active", "#0056b3")])
+        style.map("Mesa.Accent.TButton", background=[("active", "#2563EB")])
 
         # Black Exit button
         style.configure("Exit.TButton", foreground=WHITE, background="#000000")
@@ -608,6 +608,8 @@ class POS_GUI(tk.Tk):
         self.tree.tag_configure(self.tree_minus_tag, background="#FFCDD2", font=("Arial", 18, "bold"))
         self.tree.tag_configure(self.tree_plus_tag, background="#C8E6C9", font=("Arial", 18, "bold"))
         self.tree.tag_configure(self.tree_qty_tag, background="#FFF9C4", font=("Arial", 16, "bold"))
+        self.tree.tag_configure("evenrow", background="#FFFFFF")
+        self.tree.tag_configure("oddrow", background="#F8FAFC")
         self.tree.tag_configure(self.tree_low_stock_tag, background="#FFCDD2")
         
         # Column headers
@@ -657,10 +659,16 @@ class POS_GUI(tk.Tk):
         self.refresh_ticket_buttons()
 
         # Pack RIGHT elements first to ensure they take priority and don't get cut
-        self.total_label = ttk.Label(
-            bottom_frame, text="Total: $0.00", style="Total.TLabel"
+        self.total_label = tk.Label(
+            bottom_frame,
+            text="Total: $0.00",
+            font=("Arial", 44, "bold"),
+            bg="#F4F6F8",
+            fg="#0F172A",
+            anchor="e",
+            pady=5
         )
-        self.total_label.pack(side=tk.RIGHT, padx=(10, 0))
+        self.total_label.pack(side=tk.RIGHT, padx=(10, 0), pady=(5, 10))
 
         ttk.Button(
             bottom_frame,
@@ -1064,7 +1072,7 @@ class POS_GUI(tk.Tk):
             self.tree.delete(item)
 
         # Insert current items with +/- buttons
-        for barcode, item in self.sale_items.items():
+        for idx, (barcode, item) in enumerate(self.sale_items.items()):
             total_price = item["qty"] * item["precio"]
             
             # Determine if low stock
@@ -1072,6 +1080,7 @@ class POS_GUI(tk.Tk):
             
             # Build tags list
             tags = [barcode]
+            tags.append("evenrow" if idx % 2 == 0 else "oddrow")
             if is_low_stock:
                 tags.append(self.tree_low_stock_tag)
             

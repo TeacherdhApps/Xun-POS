@@ -102,13 +102,13 @@ class ReportsApp(tk.Tk):
         style.theme_use("clam")
 
         # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
+        BG_COLOR = "#F4F6F8"
+        TEXT_COLOR = "#1E293B"
+        ACCENT_COLOR = "#3B82F6"
+        SUCCESS_COLOR = "#10B981"
+        DANGER_COLOR = "#EF4444"
         WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
+        BLACK = "#0F172A"
 
         # General styles
         self.configure(bg=BG_COLOR)
@@ -119,7 +119,7 @@ class ReportsApp(tk.Tk):
         style.configure("TButton", font=("Arial", 12, "bold"), padding=10)
         style.map(
             "TButton",
-            background=[("active", "#EAEAEA")],
+            background=[("active", "#E2E8F0")],
             foreground=[("active", BLACK)],
         )
 
@@ -127,7 +127,7 @@ class ReportsApp(tk.Tk):
         style.configure(
             "Treeview",
             font=("Arial", 12),
-            rowheight=30,
+            rowheight=35,
             background=WHITE,
             fieldbackground=WHITE,
             foreground=TEXT_COLOR,
@@ -154,7 +154,7 @@ class ReportsApp(tk.Tk):
             font=ACTION_FONT,
             padding=ACTION_PADDING,
         )
-        style.map("Print.TButton", background=[("active", "#218838")])
+        style.map("Print.TButton", background=[("active", "#059669")])
 
         style.configure(
             "Modify.TButton",
@@ -163,7 +163,7 @@ class ReportsApp(tk.Tk):
             font=ACTION_FONT,
             padding=ACTION_PADDING,
         )
-        style.map("Modify.TButton", background=[("active", "#0056b3")])
+        style.map("Modify.TButton", background=[("active", "#2563EB")])
 
         style.configure(
             "Danger.Action.TButton",
@@ -172,7 +172,7 @@ class ReportsApp(tk.Tk):
             font=ACTION_FONT,
             padding=ACTION_PADDING,
         )
-        style.map("Danger.Action.TButton", background=[("active", "#c82333")])
+        style.map("Danger.Action.TButton", background=[("active", "#DC2626")])
 
         style.configure(
             "Exit.TButton",

@@ -43,13 +43,13 @@ class SettingsApp(tk.Tk):
         style.theme_use("clam")
 
         # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
+        BG_COLOR = "#F4F6F8"
+        TEXT_COLOR = "#1E293B"
+        ACCENT_COLOR = "#3B82F6"
+        SUCCESS_COLOR = "#10B981"
+        DANGER_COLOR = "#EF4444"
         WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
+        BLACK = "#0F172A"
 
         # General styles
         self.configure(bg=BG_COLOR)
@@ -63,7 +63,7 @@ class SettingsApp(tk.Tk):
         style.configure("TButton", font=("Arial", 12, "bold"), padding=10)
         style.map(
             "TButton",
-            background=[("active", "#EAEAEA")],
+            background=[("active", "#E2E8F0")],
             foreground=[("active", BLACK)],
         )
         style.configure(
@@ -72,20 +72,20 @@ class SettingsApp(tk.Tk):
 
         # Custom Button styles
         style.configure("Blue.TButton", foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Blue.TButton", background=[("active", "#0056b3")])
+        style.map("Blue.TButton", background=[("active", "#2563EB")])
 
         style.configure("Red.TButton", foreground=WHITE, background=DANGER_COLOR)
-        style.map("Red.TButton", background=[("active", "#bd2130")])
+        style.map("Red.TButton", background=[("active", "#DC2626")])
 
         style.configure("Green.TButton", foreground=WHITE, background=SUCCESS_COLOR)
-        style.map("Green.TButton", background=[("active", "#218838")])
+        style.map("Green.TButton", background=[("active", "#059669")])
 
         style.configure("Black.TButton", foreground=WHITE, background="#000000")
         style.map("Black.TButton", background=[("active", "#333333")])
 
         # Small Accent style for the "Seleccionar..." button
         style.configure("SmallAccent.TButton", font=("Arial", 10, "bold"), padding=5, foreground=WHITE, background=ACCENT_COLOR)
-        style.map("SmallAccent.TButton", background=[("active", "#0056b3")])
+        style.map("SmallAccent.TButton", background=[("active", "#2563EB")])
 
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode with F11."""
