@@ -1,14 +1,32 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Punto de Venta - Xun-POS
+Sistema de punto de venta para sistemas Unix
+"""
+
+import base64
 import config
+import csv
+import datetime as dt_module
 import os
 import platform
-import store
+import sqlite3
 import subprocess
 import sys
 import tempfile
 import tkinter as tk
 import webbrowser
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from pathlib import Path
+
+import customtkinter as ctk
 from tkinter import messagebox, ttk
+
+import database
+import security
+import store
 
 try:
     from thermal_printer import ThermalPrinter
@@ -26,1307 +44,139 @@ if platform.system() == "Windows":
     print("=" * 60)
     sys.exit(1)
 
-
-class POS_GUI(tk.Tk):
-    def __init__(self, user_role="admin"):
-        super().__init__()
-        self.title("Punto de Venta")
-        self.state("normal")
-        self.resizable(True, True)
-        self.user_role = user_role  # Store user role for access control
-        self.is_fullscreen = False  # Track fullscreen state
-        
-        # Directory where the application scripts live
-        self.app_dir = str(config.app_dir())
-        if config.get_mode() == "demo":
-            self.title(self.title() + " [DEMO]")
-
-        self.store = store.Store()
-        self.settings = self.load_settings()
-        self.products = self.load_products()
-        self.active_tickets = {1: {}, 2: {}}
-        self.current_ticket_id = 1
-        self.sale_items = self.active_tickets[1]  # Dictionary to handle quantities: {codigo: {'nombre': str, 'precio': float, 'cantidad': int}}
-        self.last_added_barcode = (
-            None  # Track the last added product for quick re-addition
-        )
-        self.search_timer = None  # Timer for debounce search
-
-        self.create_styles()
-        self.create_widgets()
-        self.update_time()  # Start the clock
-        self.after(100, lambda: self.product_combobox.focus_set())  # Focus on product combobox
-
-        # Bind F11 for fullscreen toggle
-        self.bind("<F11>", self.toggle_fullscreen)
-
-    def load_settings(self):
-        """Load settings from the database with default fallback."""
-        default_settings = {
-            "business_name": "Mi Tienda",
-            "address": "Calle Principal 123",
-            "phone": "555-0199",
-            "cashier_name": "Cajero",
-            "logo_path": ""
-        }
-        default_settings.update(self.store.get_settings())
-        return default_settings
-
-    def update_time(self):
-        """Update date and time labels every second."""
-        now = datetime.now()
-        
-        # Spanish day and month names
-        dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-        meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-        
-        day_name = dias[now.weekday()]
-        month_name = meses[now.month - 1]
-        
-        date_str = f"{day_name}, {now.day} de {month_name} de {now.year}"
-        time_str = now.strftime("%I:%M %p")
-
-        self.date_label.config(text=date_str)
-        self.time_label.config(text=time_str)
-
-        self.after(1000, self.update_time)
-
-    def load_products(self):
-        """Load active products from the database."""
-        return self.store.list_products()
-
-    def create_styles(self):
-        """Configure ttk styles."""
-        style = ttk.Style(self)
-        style.theme_use("clam")
-
-        # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        SECONDARY_TEXT_COLOR = "#6C757D"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
-        WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
-
-        # Combobox Listbox Styling (Global for Tcl/Tk)
-        self.option_add("*TCombobox*Listbox.font", ("Arial", 18))
-        self.option_add("*TCombobox*Listbox.background", WHITE)
-        self.option_add("*TCombobox*Listbox.foreground", TEXT_COLOR)
-        self.option_add("*TCombobox*Listbox.selectBackground", ACCENT_COLOR)
-        self.option_add("*TCombobox*Listbox.selectForeground", WHITE)
-
-        # Custom Combobox styles
-        # Product input: Distinct background to indicate readiness
-        style.configure("Product.TCombobox", fieldbackground="#FFF9C4", background=WHITE) # Light Yellow
-        
-        # Quantity editor: Subtle background
-        style.configure("Qty.TCombobox", fieldbackground="#E8F5E9", background=WHITE) # Light Green
-
-        # General styles
-        self.configure(bg=BG_COLOR)
-        style.configure("TFrame", background=BG_COLOR)
-        style.configure(
-            "TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=("Arial", 12)
-        )
-        style.configure("TButton", font=("Arial", 12, "bold"), padding=5)
-        style.map(
-            "TButton",
-            background=[("active", "#EAEAEA")],
-            foreground=[("active", BLACK)],
-        )
-
-        # Treeview styles
-        style.configure(
-            "Treeview",
-            font=("Arial", 16),
-            rowheight=40,
-            background=WHITE,
-            fieldbackground=WHITE,
-            foreground=TEXT_COLOR,
-        )
-        style.map("Treeview", background=[("selected", ACCENT_COLOR)])
-        style.configure(
-            "Treeview.Heading",
-            font=("Arial", 14, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
-        )
-
-        # Treeview button-like cell styles
-        style.configure(
-            "Treeview.Button",
-            font=("Arial", 18, "bold"),
-            rowheight=40,
-            background=WHITE,
-            fieldbackground=WHITE,
-        )
-        
-        # Tag configurations for +/- buttons
-        self.tree_plus_tag = "plus_btn"
-        self.tree_minus_tag = "minus_btn"
-        self.tree_qty_tag = "qty_cell"
-        self.tree_low_stock_tag = "low_stock"
-
-        # Custom Label styles
-        style.configure(
-            "Total.TLabel",
-            font=("Arial", 48, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
-        )
-        style.configure(
-            "Header.TLabel",
-            font=("Arial", 28, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
-        )
-        style.configure(
-            "DateTime.TLabel",
-            font=("Arial", 12, "bold"),
-            background=BG_COLOR,
-            foreground=TEXT_COLOR,
-        )
-        style.configure(
-            "Subtle.TLabel",
-            font=("Arial", 12, "bold"),
-            background=BG_COLOR,
-            foreground=SECONDARY_TEXT_COLOR,
-        )
-        style.configure(
-            "Success.TLabel",
-            font=("Arial", 12, "bold"),
-            background=BG_COLOR,
-            foreground=SUCCESS_COLOR,
-        )
-
-        # Custom Button styles
-        style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Accent.TButton", background=[("active", "#0056b3")])
-
-        style.configure("Success.TButton", foreground=WHITE, background=SUCCESS_COLOR)
-        style.map("Success.TButton", background=[("active", "#1E7E34")])
-
-        style.configure("Danger.TButton", foreground=WHITE, background=DANGER_COLOR)
-        style.map("Danger.TButton", background=[("active", "#BD2130")])
-
-        # Custom style for larger Success and Danger buttons
-        style.configure(
-            "Large.Success.TButton",
-            foreground=WHITE,
-            background=SUCCESS_COLOR,
-            font=("Arial", 18, "bold"),
-            padding=[20, 15],
-        )
-        style.map("Large.Success.TButton", background=[("active", "#1E7E34")])
-
-        style.configure(
-            "Large.Danger.TButton",
-            foreground=WHITE,
-            background=DANGER_COLOR,
-            font=("Arial", 18, "bold"),
-            padding=[20, 15],
-        )
-        style.map("Large.Danger.TButton", background=[("active", "#BD2130")])
-
-        # Custom style for larger Accent buttons
-        style.configure(
-            "Large.Accent.TButton",
-            foreground=WHITE,
-            background=ACCENT_COLOR,
-            font=("Arial", 16, "bold"),  # Larger font
-            padding=[20, 15],  # More padding (horizontal, vertical)
-        )
-        style.map("Large.Accent.TButton", background=[("active", "#0056b3")])
-
-        # Custom style for dark grey buttons
-        style.configure("DarkGrey.TButton", foreground=WHITE, background=TEXT_COLOR)
-        style.map("DarkGrey.TButton", background=[("active", SECONDARY_TEXT_COLOR)])
-
-        # Small Button style
-        style.configure("Small.TButton", font=("Arial", 10), padding=1)
-        style.configure("Small.Accent.TButton", font=("Arial", 10, "bold"), padding=1, foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Small.Accent.TButton", background=[("active", "#0056b3")])
-
-        # Black Exit button
-        style.configure("Exit.TButton", foreground=WHITE, background="#000000")
-        style.map("Exit.TButton", background=[("active", "#333333")])
-
-    def toggle_fullscreen(self, event=None):
-        """Toggle fullscreen mode with F11."""
-        self.is_fullscreen = not self.is_fullscreen
-        self.attributes("-fullscreen", self.is_fullscreen)
-        return "break"
-
-    def create_widgets(self):
-        """Create and pack all widgets."""
-        # Main layout frames
-        main_frame = ttk.Frame(self, padding="20")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Top menu bar
-        self._create_menu_bar(main_frame)
-
-        # Frame for product search
-        self._create_top_frame(main_frame)
-
-        # Middle Frame: Sale Items Treeview with scrollbar
-        self._create_middle_frame(main_frame)
-
-        # Bottom Frame: Total and Actions
-        self._create_bottom_frame(main_frame)
-
-        # No listbox needed for Combobox
-
-        # Bind F1 to show payment window
-        self.bind("<F1>", lambda event: self.show_payment_window())
-        # Bind F2 to focus the product search (keyboard shortcut)
-        self.bind("<F2>", lambda event: self.product_combobox.focus_set())
-        # Bind F3 to open settings window
-        self.bind("<F3>", lambda event: self.open_settings_window())
-        # Bind F4 to open the payment window (keyboard shortcut)
-        self.bind("<F4>", lambda event: self.show_payment_window())
-        # Bind F5 to open reports window (only for admin)
-        if self.user_role == "admin":
-            self.bind("<F5>", lambda event: self.open_reports_window())
-        # Bind F8 to close the current sale
-        self.bind("<F8>", lambda event: self._quick_close_sale())
-        # Bind F12 to exit application
-        self.bind("<F12>", lambda event: self.destroy())
-        # Bind Tab to focus next widget
-        self.bind("<Tab>", lambda event: self.focus_next_widget())
-
-    def _create_menu_bar(self, parent):
-        """Create the top menu bar."""
-        menu_frame = ttk.Frame(parent)
-        menu_frame.pack(fill=tk.X, pady=(0, 10))
-
-        # Store info label (Top Right)
-        info_label = ttk.Label(
-            menu_frame,
-            text="@Xun-POS",
-            font=("Arial", 8),
-            foreground="#666666",
-        )
-        info_label.pack(side=tk.RIGHT, anchor=tk.NE, padx=5, pady=5)
-
-        business_name_label = ttk.Label(
-            menu_frame, text=self.settings["business_name"], style="Header.TLabel"
-        )
-        business_name_label.pack(side=tk.TOP, pady=(0, 5))
-
-        # Frame for date and time
-        datetime_frame = ttk.Frame(menu_frame)
-        datetime_frame.pack(side=tk.LEFT, padx=5)
-
-        self.date_label = ttk.Label(datetime_frame, style="DateTime.TLabel")
-        self.date_label.pack(side=tk.TOP)
-
-        self.time_label = ttk.Label(datetime_frame, style="Subtle.TLabel")
-        self.time_label.pack(side=tk.TOP)
-
-        # Right-aligned buttons
-        button_frame = ttk.Frame(menu_frame)
-        button_frame.pack(side=tk.RIGHT)
-
-        # Only show Settings button for admin
-        if self.user_role == "admin":
-            ttk.Button(
-                button_frame, text="F3 - Ajustes", command=self.open_settings_window
-            ).pack(side=tk.LEFT, padx=5)
-
-        ttk.Button(
-            button_frame, text="Productos", command=self.open_products_window
-        ).pack(side=tk.LEFT, padx=5)
-
-        if self.user_role == "admin":
-            ttk.Button(
-                button_frame,
-                text="Cierre de Caja",
-                command=self.open_cash_closure,
-            ).pack(side=tk.LEFT, padx=5)
-
-        # Only show Reports button for admin
-        if self.user_role == "admin":
-            ttk.Button(
-                button_frame, text="F5 - Reportes", command=self.open_reports_window
-            ).pack(side=tk.LEFT, padx=5)
-
-        ttk.Button(
-            button_frame, text="F12 - Salir", command=self.destroy, style="Exit.TButton"
-        ).pack(side=tk.LEFT)
-
-    def switch_ticket(self, ticket_id):
-        """Switch to a specific ticket."""
-        self.current_ticket_id = ticket_id
-        self.sale_items = self.active_tickets[ticket_id]
-        self.update_sale_list()
-        self.update_total()
-        self.refresh_ticket_buttons()
-        self.product_combobox.focus()
-
-    def refresh_ticket_buttons(self):
-        """Refresh the ticket buttons in the UI."""
-        # Check if container exists (it might not be created yet during init)
-        if not hasattr(self, 'tickets_container'):
-            return
-
-        for widget in self.tickets_container.winfo_children():
-            widget.destroy()
-
-        for t_id in sorted(self.active_tickets.keys()):
-            style = "Small.Accent.TButton" if t_id == self.current_ticket_id else "Small.TButton"
-            
-            btn = ttk.Button(self.tickets_container, text=f"Recibo {t_id}", style=style,
-                             command=lambda id=t_id: self.switch_ticket(id))
-            btn.pack(side=tk.LEFT, padx=2)
-
-    def clear_sale(self):
-        """Clear the current sale."""
-        self.active_tickets[self.current_ticket_id] = {}
-        self.sale_items = self.active_tickets[self.current_ticket_id]
-        self.update_sale_list()
-        self.update_total()
-        self.product_combobox.set('')
-        self.product_combobox['values'] = []
-        self.product_combobox.focus()
-
-    def reset_sale(self):
-        """Reset the sale items and UI."""
-        self.active_tickets[self.current_ticket_id] = {}
-        self.sale_items = self.active_tickets[self.current_ticket_id]
-        self.update_sale_list()
-        self.update_total()
-        self.product_combobox.set('')
-        self.product_combobox['values'] = []
-        self.product_combobox.focus()
-
-    def _quick_close_sale(self):
-        """Close (clear) the current sale through the F8 shortcut."""
-        if not self.sale_items:
-            return
-        if not messagebox.askyesno("Cierre", "¿Cerrar la venta actual?"):
-            return
-        self.clear_sale()
-
-    def _create_top_frame(self, parent):
-        """Create the top frame for product entry."""
-        top_frame = ttk.Frame(parent)
-        top_frame.pack(fill=tk.X, pady=5)  # Reduced pady
-
-        ttk.Label(
-            top_frame,
-            text="PRODUCTO (Código o Nombre):",
-            font=("Arial", 20, "bold"),
-        ).pack(  # Increased font
-            side=tk.LEFT, padx=(0, 10)
-        )
-
-        self.product_combobox = ttk.Combobox(
-            top_frame, font=("Arial", 24, "bold"), style="Product.TCombobox"
-        )  # Increased font
-        self.product_combobox.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.product_combobox.bind("<Return>", self.add_product)
-        self.product_combobox.bind("<KP_Enter>", self.add_product)
-        self.product_combobox.bind("<KeyRelease>", self.show_suggestions)
-        self.product_combobox.bind("<<ComboboxSelected>>", self.add_product)
-
-    def _create_middle_frame(self, parent):
-        """Create the middle frame with Treeview and scrollbar."""
-        middle_frame = ttk.Frame(parent)
-        middle_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Treeview with scrollbar
-        tree_frame = ttk.Frame(middle_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Add columns for +/- buttons
-        self.tree = ttk.Treeview(
-            tree_frame,
-            columns=("barcode", "name", "minus", "qty", "plus", "price", "descto", "total"),
-            show="headings",
-            height=8,
-        )
-        
-        # Configure tags for button-like appearance
-        self.tree.tag_configure(self.tree_minus_tag, background="#FFCDD2", font=("Arial", 18, "bold"))
-        self.tree.tag_configure(self.tree_plus_tag, background="#C8E6C9", font=("Arial", 18, "bold"))
-        self.tree.tag_configure(self.tree_qty_tag, background="#FFF9C4", font=("Arial", 16, "bold"))
-        self.tree.tag_configure(self.tree_low_stock_tag, background="#FFCDD2")
-        self.tree.tag_configure(self.tree_disc_tag, background="#E3F2FD", font=("Arial", 16, "bold"))
-        
-        # Column headers
-        self.tree.heading("barcode", text="Código")
-        self.tree.heading("name", text="Producto")
-        self.tree.heading("minus", text=" − ")
-        self.tree.heading("qty", text="Cant.")
-        self.tree.heading("plus", text=" + ")
-        self.tree.heading("price", text="Precio Unit")
-        self.tree.heading("descto", text="Desc %")
-        self.tree.heading("total", text="Total")
-        
-        # Column widths and alignment
-        self.tree.column("barcode", anchor=tk.W, width=90, minwidth=70)
-        self.tree.column("name", anchor=tk.W, width=250, minwidth=180)
-        self.tree.column("minus", anchor=tk.CENTER, width=45, minwidth=40, stretch=False)
-        self.tree.column("qty", anchor=tk.CENTER, width=60, minwidth=50, stretch=False)
-        self.tree.column("plus", anchor=tk.CENTER, width=45, minwidth=40, stretch=False)
-        self.tree.column("price", anchor=tk.E, width=95, minwidth=80)
-        self.tree.column("descto", anchor=tk.E, width=70, minwidth=60)
-        self.tree.column("total", anchor=tk.E, width=110, minwidth=90)
-
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(
-            tree_frame, orient=tk.VERTICAL, command=self.tree.yview
-        )
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Bind events
-        self.tree.bind("<Delete>", lambda e: self.delete_item())
-        self.tree.bind("<Up>", lambda e: self.navigate_tree("up"))
-        self.tree.bind("<Down>", lambda e: self.navigate_tree("down"))
-        self.tree.bind("<Button-1>", self.on_tree_click)
-
-    def _create_bottom_frame(self, parent):
-        """Create the bottom frame with actions and total."""
-        bottom_frame = ttk.Frame(parent)
-        bottom_frame.pack(fill=tk.X, pady=5)
-
-        # Ticket Controls (Small buttons) - Moved to TOP
-        ticket_frame = ttk.Frame(bottom_frame)
-        ticket_frame.pack(side=tk.TOP, anchor=tk.W, padx=0, pady=0)
-        
-        self.tickets_container = ttk.Frame(ticket_frame)
-        self.tickets_container.pack(side=tk.LEFT)
-        
-        self.refresh_ticket_buttons()
-
-        # Pack RIGHT elements first to ensure they take priority and don't get cut
-        self.total_label = ttk.Label(
-            bottom_frame, text="Total: $0.00", style="Total.TLabel"
-        )
-        self.total_label.pack(side=tk.RIGHT, padx=(10, 0))
-
-        ttk.Button(
-            bottom_frame,
-            text="F1 - Cobrar",
-            command=self.show_payment_window,
-            style="Large.Accent.TButton",
-        ).pack(side=tk.RIGHT, padx=(8, 0))
-
-        # Pack LEFT elements
-        ttk.Button(
-            bottom_frame,
-            text="Eliminar Producto",
-            command=self.delete_item,
-            style="DarkGrey.TButton",
-        ).pack(side=tk.LEFT, padx=(0, 8))
-
-        ttk.Button(
-            bottom_frame,
-            text="General",
-            command=self.open_general_product_window,
-            style="Accent.TButton",
-        ).pack(side=tk.LEFT, padx=5)
-
-        ttk.Button(
-            bottom_frame,
-            text="Entradas",
-            command=self.open_entry_window,
-            style="Success.TButton",
-        ).pack(side=tk.LEFT, padx=5)
-
-        ttk.Button(
-            bottom_frame,
-            text="Salidas",
-            command=self.open_exit_window,
-            style="Danger.TButton",
-        ).pack(side=tk.LEFT, padx=(0, 10))
-
-        # Status label for messages
-        self.status_label = ttk.Label(bottom_frame, text="", style="Subtle.TLabel")
-        self.status_label.pack(side=tk.LEFT, padx=(10, 0))
-
-    def open_settings_window(self):
-        """Open settings GUI in a new process."""
-        script_path = os.path.join(self.app_dir, "settings_gui.py")
-        if os.path.exists(script_path):
-            subprocess.Popen([sys.executable, script_path])
-
-    def open_products_window(self):
-        """Open products GUI in a new process."""
-        script_path = os.path.join(self.app_dir, "products_gui.py")
-        if os.path.exists(script_path):
-            subprocess.Popen([sys.executable, script_path])
-
-    def open_reports_window(self):
-        """Open reports GUI in a new process."""
-        script_path = os.path.join(self.app_dir, "reports_gui.py")
-        if os.path.exists(script_path):
-            subprocess.Popen([sys.executable, script_path])
-
-    def open_cash_closure(self):
-        """Open the cash closure window."""
-        CashClosureWindow(self)
-
-    def open_general_product_window(self):
-        """Open window to add a general product."""
-        GeneralProductWindow(self)
-
-    def open_entry_window(self):
-        """Open entry window for cash inflow."""
-        EntryExitWindow(self, "Entrada Efectivo", "entries")
-
-    def open_exit_window(self):
-        """Open exit window for cash outflow."""
-        EntryExitWindow(self, "Salida Efectivo", "exits")
-
-    def log_cash_flow(self, transaction_type, amount, concept):
-        """Log an entry or exit movement in the database."""
-        kind = transaction_type.strip().lower()
-        if kind not in ("entrada", "salida"):
-            raise ValueError(f"tipo de movimiento inválido: {transaction_type}")
-        return self.store.add_cash_movement(kind, amount, concept)
-
-    def show_suggestions(self, event=None):
-        """Schedule product suggestions update (debounce)."""
-        # Ignore navigation keys to avoid resetting the list while navigating
-        if event and event.keysym in ['Up', 'Down', 'Left', 'Right', 'Return', 'ISO_Left_Tab', 'Tab']:
-            return
-
-        # Cancel previous timer if exists
-        if self.search_timer:
-            self.after_cancel(self.search_timer)
-        
-        # Schedule new search in 3000ms for responsiveness
-        self.search_timer = self.after(3000, self.perform_search)
-
-    def perform_search(self):
-        """Actual search logic executed after debounce."""
-        # Save cursor position before updating values
-        try:
-            cursor_pos = self.product_combobox.index(tk.INSERT)
-        except tk.TclError:
-            cursor_pos = None
-
-        search_term = self.product_combobox.get().lower().strip()
-        if len(search_term) < 1:
-            self.product_combobox["values"] = []
-            try:
-                self.tk.call('ttk::combobox::Unpost', self.product_combobox._w)
-            except tk.TclError:
-                pass
-            return
-
-        suggestions = []
-        terms = search_term.split()
-
-        # Score-based search for 1000+ products
-        scored_suggestions = []
-        for code, product in self.products.items():
-            name = product['nombre'].lower()
-            code_lower = code.lower()
-            
-            # Check if all terms match
-            if all(term in name or term in code_lower for term in terms):
-                # Scoring: 
-                # 3 points: name starts with the first term
-                # 2 points: code starts with the first term
-                # 1 point: match anywhere (default)
-                score = 1
-                first_term = terms[0]
-                if name.startswith(first_term):
-                    score = 3
-                elif code_lower.startswith(first_term):
-                    score = 2
-                
-                scored_suggestions.append((score, f"{product['nombre']} ({code})"))
-
-        # Sort by score descending and then alphabetically
-        scored_suggestions.sort(key=lambda x: (-x[0], x[1]))
-        suggestions = [s[1] for s in scored_suggestions]
-
-        if suggestions:
-            # Only update if different to avoid flickering
-            current_values = self.product_combobox["values"]
-            new_values = tuple(suggestions[:30]) # Limit to 30 for better usability with many items
-            
-            if current_values != new_values:
-                self.product_combobox["values"] = new_values
-                try:
-                    self.tk.call('ttk::combobox::Post', self.product_combobox._w)
-                except tk.TclError:
-                    pass
-        else:
-            self.product_combobox["values"] = []
-            try:
-                self.tk.call('ttk::combobox::Unpost', self.product_combobox._w)
-            except tk.TclError:
-                pass
-
-        # Restore cursor position
-        if cursor_pos is not None:
-            try:
-                self.product_combobox.icursor(cursor_pos)
-            except tk.TclError:
-                pass
-
-    def hide_suggestions(self, event=None):
-        """No need to hide for Combobox."""
-        pass
-
-    def select_suggestion(self, event=None):
-        """Not needed for Combobox."""
-        pass
-
-    def add_product(self, event=None):
-        """Add product to sale by barcode or name."""
-        # Cancel any pending search to prevent dropdown from popping up after addition
-        if self.search_timer:
-            self.after_cancel(self.search_timer)
-            self.search_timer = None
-
-        # Close the dropdown list if it's open
-        try:
-            self.tk.call('ttk::combobox::Unpost', self.product_combobox._w)
-        except tk.TclError:
-            pass
-
-        search_term = self.product_combobox.get().strip()
-        if not search_term:
-            return "break"
-
-        qty = 1
-
-        base_term = search_term
-        # Handle if base_term is "Name (code)" from combobox selection
-        if "(" in base_term and ")" in base_term:
-            possible_code = base_term.split("(")[-1].rstrip(")")
-            if possible_code in self.products:
-                base_term = possible_code
-        
-        # Normalize barcode by stripping leading zeros
-        normalized_term = base_term.lstrip("0") or "0"
-
-        product = self.products.get(normalized_term)
-        barcode = normalized_term
-        if not product:
-            # Search by name (exact match)
-            for code, prod in self.products.items():
-                if prod["nombre"].lower() == base_term.lower():
-                    product = prod
-                    barcode = code
-                    break
-
-        # If not found, try smart search (partial/multi-keyword)
-        if not product:
-            search_terms = base_term.lower().split()
-            matches = []
-            for code, prod in self.products.items():
-                search_target = f"{prod['nombre']} {code}".lower()
-                if all(term in search_target for term in search_terms):
-                    matches.append((code, prod))
-            
-            if len(matches) == 1:
-                barcode, product = matches[0]
-            elif len(matches) > 1:
-                self.status_label.config(text=f"Múltiples coincidencias ({len(matches)}). Seleccione de la lista.")
-                self.after(2000, lambda: self.status_label.config(text=""))
-                # Re-open dropdown if it was closed but we need selection
-                try:
-                    self.tk.call('ttk::combobox::Post', self.product_combobox._w)
-                except tk.TclError:
-                    pass
-                return "break"
-
-        if product:
-            if barcode in self.sale_items:
-                self.sale_items[barcode]["qty"] += qty
-            else:
-                self.sale_items[barcode] = {
-                    "nombre": product["nombre"],
-                    "precio": product["precio"],
-                    "qty": qty,
-                    "descuento": 0,
-                }
-
-            self.last_added_barcode = barcode  # Update last added product
-            self.update_sale_list()
-            self.update_total()
-            
-            # Select and see the added/updated item
-            for item_id in self.tree.get_children():
-                if self.tree.item(item_id, "tags") and self.tree.item(item_id, "tags")[0] == barcode:
-                    self.tree.selection_set(item_id)
-                    self.tree.see(item_id)
-                    break
-                    
-            self.product_combobox.delete(0, tk.END)
-            self.product_combobox.focus()
-        else:
-            self.status_label.config(text=f"Producto '{base_term}' no encontrado.")
-            self.after(2000, lambda: self.status_label.config(text=""))
-            self.product_combobox.focus()
-        
-        return "break"
-
-    def focus_next_widget(self):
-        """Focus the next logical widget (e.g., from combobox to treeview)."""
-        current_focus = self.focus_get()
-        if current_focus == self.product_combobox:
-            self.tree.focus_set()
-            if self.tree.get_children():
-                self.tree.selection_set(self.tree.get_children()[0])
-        else:
-            self.product_combobox.focus_set()
-
-    def on_tree_click(self, event):
-        """Handle click on treeview for +/- buttons and quantity editing."""
-        region = self.tree.identify("region", event.x, event.y)
-        if region == "cell":
-            column = self.tree.identify_column(event.x)
-            item_id = self.tree.identify_row(event.y)
-            
-            if not item_id:
-                return
-
-            # Get barcode from tags
-            tags = self.tree.item(item_id, "tags")
-            if not tags:
-                return
-            barcode = tags[0]
-
-            # Handle minus button (column #3)
-            if column == "#3":
-                self.decrement_quantity(barcode)
-                return "break"
-            
-            # Handle plus button (column #5)
-            elif column == "#5":
-                self.increment_quantity(barcode)
-                return "break"
-            
-            # Handle quantity column for manual editing (column #4)
-            elif column == "#4":
-                bbox = self.tree.bbox(item_id, column)
-                if not bbox:
-                    return
-
-                # Create Combobox for quantity selection
-                entry_edit = ttk.Combobox(
-                    self.tree, values=[str(i) for i in range(1, 11)], 
-                    font=("Arial", 14), state="normal", style="Qty.TCombobox"
-                )
-                entry_edit.place(x=bbox[0], y=bbox[1], width=bbox[2], height=bbox[3])
-
-                # Set current value
-                current_qty = self.sale_items[barcode]["qty"]
-                if current_qty > 10:
-                    entry_edit['values'] = list(entry_edit['values']) + [str(current_qty)]
-                
-                entry_edit.set(current_qty)
-
-                def save_edit(event=None):
-                    try:
-                        new_qty = int(entry_edit.get())
-                        if new_qty > 0:
-                            self.sale_items[barcode]["qty"] = new_qty
-                            self.update_sale_list()
-                            self.update_total()
-                    except ValueError:
-                        pass
-                    entry_edit.destroy()
-
-                entry_edit.bind("<Return>", save_edit)
-                entry_edit.bind("<<ComboboxSelected>>", save_edit)
-                entry_edit.bind("<FocusOut>", lambda e: entry_edit.destroy())
-                entry_edit.focus_set()
-                entry_edit.event_generate('<Button-1>')
-
-            # Handle discount column for manual editing (column #7)
-            elif column == "#7":
-                bbox = self.tree.bbox(item_id, column)
-                if not bbox:
-                    return
-
-                # Create Combobox for discount selection (0-100 in steps of 5)
-                entry_edit = ttk.Combobox(
-                    self.tree,
-                    values=[str(i) for i in range(0, 101, 5)],
-                    font=("Arial", 14),
-                    state="normal",
-                    style="Qty.TCombobox",
-                )
-                entry_edit.place(x=bbox[0], y=bbox[1], width=bbox[2], height=bbox[3])
-
-                current_discount = self.sale_items[barcode].get("descuento", 0)
-                entry_edit.set(str(current_discount))
-
-                def save_edit(event=None):
-                    try:
-                        new_discount = int(entry_edit.get())
-                        if 0 <= new_discount <= 100:
-                            self.sale_items[barcode]["descuento"] = new_discount
-                            self.update_sale_list()
-                            self.update_total()
-                    except ValueError:
-                        pass
-                    entry_edit.destroy()
-
-                entry_edit.bind("<Return>", save_edit)
-                entry_edit.bind("<<ComboboxSelected>>", save_edit)
-                entry_edit.bind("<FocusOut>", lambda e: entry_edit.destroy())
-                entry_edit.focus_set()
-                entry_edit.event_generate('<Button-1>')
-
-    def increment_quantity(self, barcode):
-        """Increment quantity by 1."""
-        if barcode in self.sale_items:
-            self.sale_items[barcode]["qty"] += 1
-            self.update_sale_list()
-            self.update_total()
-
-    def decrement_quantity(self, barcode):
-        """Decrement quantity by 1, remove if reaches 0."""
-        if barcode in self.sale_items:
-            if self.sale_items[barcode]["qty"] > 1:
-                self.sale_items[barcode]["qty"] -= 1
-                self.update_sale_list()
-                self.update_total()
-            else:
-                # Remove item when quantity reaches 0
-                del self.sale_items[barcode]
-                self.update_sale_list()
-                self.update_total()
-
-    def navigate_tree(self, direction):
-        """Navigate treeview with arrow keys."""
-        selected = self.tree.selection()
-        if not selected:
-            if self.tree.get_children():
-                self.tree.selection_set(self.tree.get_children()[0])
-            return
-        if direction == "up":
-            prev = self.tree.prev(selected[0])
-            if prev:
-                self.tree.selection_set(prev)
-        elif direction == "down":
-            next = self.tree.next(selected[0])
-            if next:
-                self.tree.selection_set(next)
-
-    def delete_item(self):
-        """Delete selected item from sale."""
-        selected_item = self.tree.selection()
-        if selected_item:
-            item_id = selected_item[0]
-            barcode = self.tree.item(item_id, "tags")[0]
-            if barcode in self.sale_items:
-                del self.sale_items[barcode]
-                self.update_sale_list()
-                self.update_total()
-        else:
-            messagebox.showwarning("Advertencia", "Seleccione un ítem para eliminar.")
-        
-        self.product_combobox.focus_set()
-
-    def update_sale_list(self):
-        """Update the Treeview with current sale items."""
-        # Clear existing items
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-
-        # Insert current items with +/- buttons
-        for barcode, item in self.sale_items.items():
-            descuento = item.get("descuento", 0)
-            line_total = item["qty"] * item["precio"] * (1 - descuento / 100)
-            
-            # Determine if low stock
-            is_low_stock = self.products.get(barcode, {}).get("inventario", 0) <= 5
-            
-            # Build tags list
-            tags = [barcode]
-            if is_low_stock:
-                tags.append(self.tree_low_stock_tag)
-            if descuento:
-                tags.append(self.tree_disc_tag)
-            
-            self.tree.insert(
-                "",
-                tk.END,
-                values=(
-                    barcode,
-                    item["nombre"],
-                    " − ",  # Minus button
-                    item["qty"],
-                    " + ",  # Plus button
-                    f"${item['precio']:.2f}",
-                    f"{descuento}%",
-                    f"${line_total:.2f}",
-                ),
-                tags=tags,
-            )
-
-    def update_total(self):
-        """Update the total label and return total."""
-        total = sum(
-            item["qty"] * item["precio"] * (1 - item.get("descuento", 0) / 100)
-            for item in self.sale_items.values()
-        )
-        self.total_label.config(text=f"Total: ${total:.2f}")
-        return total
-
-    def show_payment_window(self):
-        """Show payment window if there are items."""
-        total = self.update_total()
-        if total > 0:
-            PaymentWindow(self, total)
-        else:
-            messagebox.showwarning("Venta Vacía", "No hay ítems en la venta.")
-            self.product_combobox.focus()
-
-    def on_closing(self):
-        """Persist any pending tickets before closing."""
-        for ticket_id, items in self.active_tickets.items():
-            if not items:
-                continue
-            try:
-                self.store.record_sale(
-                    items, concepto=f"Venta ticket {ticket_id} (cierre)"
-                )
-            except Exception as exc:
-                print(
-                    f"No se pudo guardar el ticket {ticket_id}: {exc}",
-                    file=sys.stderr,
-                )
-        self.store.close()
-        self.destroy()
-
-
-class PaymentWindow(tk.Toplevel):
-    """Payment window for finalizing sales."""
-
+# Palette
+ACCENT_COLOR = "#007BFF"
+SUCCESS_COLOR = "#28A745"
+DANGER_COLOR = "#DC3545"
+WHITE = "#FFFFFF"
+BLACK = "#1A1A1A"
+BG_COLOR = "#F0F0F0"
+TEXT_COLOR = "#212529"
+
+# Money helpers
+def money_to_cents(value):
+    if value is None or str(value).strip() == "":
+        raise ValueError("importe vacío")
+    try:
+        amount = Decimal(str(value).strip())
+    except InvalidOperation as exc:
+        raise ValueError(f"importe inválido: {value!r}") from exc
+    if not amount.is_finite():
+        raise ValueError(f"importe inválido: {value!r}")
+    return int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def line_total_cents(price, quantity):
+    unit_cents = money_to_cents(price)
+    try:
+        amount = Decimal(str(quantity))
+    except InvalidOperation as exc:
+        raise ValueError(f"cantidad inválida: {quantity!r}") from exc
+    if not amount.is_finite() or amount <= 0:
+        raise ValueError(f"cantidad inválida: {quantity!r}")
+    return int((Decimal(unit_cents) * amount).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def normalize_code(value):
+    return str(value or "").strip().lstrip("0") or "0"
+
+
+def format_price(cents):
+    return f"{int(cents) / 100:.2f}"
+
+
+def format_quantity(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "0"
+    if number.is_integer():
+        return str(int(number))
+    return f"{number:g}"
+
+
+def parse_quantity(value):
+    text = str(value if value is not None else "0").strip() or "0"
+    try:
+        number = Decimal(text)
+    except InvalidOperation as exc:
+        raise ValueError(f"cantidad inválida: {value!r}") from exc
+    if not number.is_finite():
+        raise ValueError(f"cantidad inválida: {value!r}")
+    return float(number)
+
+
+def _date_key(value):
+    if hasattr(value, "isoformat"):
+        return value.isoformat()[:10]
+    return str(value)[:10]
+
+
+class PaymentWindow(ctk.CTkToplevel):
     def __init__(self, parent, total):
         super().__init__(parent)
         self.parent = parent
         self.total = total
-        self.change_value = 0.0
         self.amount_paid = 0.0
+        self.change_value = 0.0
 
         self.title("Finalizar Venta")
         self.geometry("550x500")
         self.transient(parent)
         self.grab_set()
         self.configure(bg="#f0f0f0")
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        self.create_payment_styles()
-        self.create_widgets()
+        self.amount_entry = ctk.CTkEntry(self, font=("Arial", 18))
+        self.amount_entry.pack(pady=10, padx=20, fill=tk.X)
+        self.amount_entry.insert(0, f"{total:.2f}")
 
-    def create_payment_styles(self):
-        """Create custom styles for payment window with larger fonts."""
-        style = ttk.Style(self)
-        # Green button for Calculate Change and Print
-        style.configure(
-            "PaymentGreen.TButton",
-            font=("Arial", 14, "bold"),
-            padding=12,
-            background="#28A745",
-            foreground="white",
-        )
-        style.map(
-            "PaymentGreen.TButton",
-            background=[("active", "#218838"), ("disabled", "#cccccc")],
-            foreground=[("disabled", "#666666")],
-        )
-        # Red button for Close
-        style.configure(
-            "PaymentRed.TButton",
-            font=("Arial", 14, "bold"),
-            padding=12,
-            background="#DC3545",
-            foreground="white",
-        )
-        style.map(
-            "PaymentRed.TButton",
-            background=[("active", "#c82333"), ("disabled", "#cccccc")],
-            foreground=[("disabled", "#666666")],
-        )
-        # Blue button for Close
-        style.configure(
-            "PaymentBlue.TButton",
-            font=("Arial", 14, "bold"),
-            padding=12,
-            background="#007BFF",
-            foreground="white",
-        )
-        style.map(
-            "PaymentBlue.TButton",
-            background=[("active", "#0069D9"), ("disabled", "#cccccc")],
-            foreground=[("disabled", "#666666")],
-        )
+        ctk.CTkLabel(self, text="Concepto:", font=("Arial", 14, "bold")).pack(pady=10)
+        self.concept_entry = ctk.CTkEntry(self, font=("Arial", 18))
+        self.concept_entry.pack(pady=5, padx=20, fill=tk.X)
 
-    def create_widgets(self):
-        """Create payment window widgets."""
-        main_frame = ttk.Frame(self, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        ttk.Label(
-            main_frame,
-            text=f"Total a Pagar: ${self.total:.2f}",
-            font=("Arial", 34, "bold"),
-        ).pack(pady=10)
-
-        ttk.Label(main_frame, text="Monto Recibido:", font=("Arial", 18, "bold")).pack(
-            pady=5
-        )
-        self.amount_entry = ttk.Entry(main_frame, font=("Arial", 24))
-        self.amount_entry.pack(pady=5, fill=tk.X)
-        self.amount_entry.focus()
-        self.amount_entry.bind("<Return>", self.calculate_change)
-        self.amount_entry.bind("<KP_Enter>", self.calculate_change)
-
-        self.calculate_button = ttk.Button(
-            main_frame,
-            text="Calcular Cambio",
-            command=self.calculate_change,
-            style="PaymentGreen.TButton",
-        )
-        self.calculate_button.pack(pady=(10, 10))
-
-        self.cancel_button = ttk.Button(
-            main_frame,
-            text="Esc - Cancelar",
-            command=self.destroy,
-            style="PaymentRed.TButton",
-        )
-        self.cancel_button.pack(pady=(0, 25))
-
-        # Bind Escape key
+        self.bind("<Return>", lambda e: self.save())
+        self.bind("<KP_Enter>", lambda e: self.save())
         self.bind("<Escape>", lambda e: self.destroy())
 
-        self.change_label = ttk.Label(
-            main_frame, text="", style="Success.TLabel", font=("Arial", 36, "bold")
-        )
-        self.change_label.pack(pady=15)
+        ctk.CTkButton(
+            self,
+            text="Ent - Guardar",
+            command=self.save,
+            fg_color=SUCCESS_COLOR,
+            hover_color="#1E7E34",
+            font=("Arial", 14, "bold"),
+        ).pack(pady=20)
 
-        # These buttons will be created after calculating change
-        self.print_button = None
-        self.close_button = None
+    def save(self):
+        amount_str = self.amount_entry.get().strip()
+        concept = self.concept_entry.get().strip()
 
-    def get_ticket_template(self):
-        """Return the ticket HTML template as a string. Robust: embedded in code, no file dependency."""
-        return """<!DOCTYPE html>
-<html lang=\"es">
-<head>
-    <meta charset=\"UTF-8\">
-    <title>Recibo de Venta</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; font-size: 14px; max-width: 300px; margin: auto; }
-        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px dashed #000; padding-bottom: 10px; }
-        .logo { max-width: 150px; max-height: 100px; margin-bottom: 10px; }
-        h2 { margin: 5px 0; font-size: 18px; }
-        .info { font-size: 12px; line-height: 1.2; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        th, td { border-bottom: 1px solid #ddd; padding: 5px; text-align: left; }
-        th { text-align: right; font-weight: bold; }
-        .total { font-size: 16px; font-weight: bold; text-align: right; margin: 5px 0; padding: 5px; border-top: 2px solid #000; }
-        .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #666; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        {{logo}}
-        <h2>{{business_name}}</h2>
-        <div class="info">{{header_info}}</div>
-    </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Producto</th>
-                <th>Precio</th>
-            </tr>
-        </thead>
-        <tbody>
-            {{items}}
-        </tbody>
-    </table>
-    <div class="totals">
-        {{totals}}
-    </div>
-    <div class="footer">
-        ¡Gracias por su compra. Vuelva pronto!
-    </div>
-</body>
-</html>"""
-
-    def calculate_change(self, event=None):
-        """Calculate change and enable print/finalize if sufficient."""
-        try:
-            self.amount_paid = float(self.amount_entry.get())
-            if self.amount_paid < self.total:
-                messagebox.showerror(
-                    "Error", "Monto recibido es menor al total.", parent=self
-                )
-                return
-            self.change_value = self.amount_paid - self.total
-            self.change_label.config(text=f"Cambio: ${self.change_value:.2f}")
-
-            # Disable entry and hide calculate button
-            self.amount_entry.config(state="disabled")
-            self.amount_entry.unbind("<Return>")
-            self.amount_entry.unbind("<KP_Enter>")
-            self.calculate_button.pack_forget()
-            if hasattr(self, 'cancel_button'):
-                self.cancel_button.pack_forget()
-
-            # Create and show the action buttons
-            self.show_action_buttons()
-        except ValueError:
-            messagebox.showerror(
-                "Error", "Monto inválido. Por favor ingrese un número.", parent=self
-            )
-
-    def show_action_buttons(self):
-        """Show Print and Close buttons after calculating change."""
-        # Get the parent frame
-        main_frame = self.change_label.master
-
-        # Create Print Ticket button (F2 - Green)
-        self.print_button = ttk.Button(
-            main_frame,
-            text="F2 - Imprimir Recibo",
-            command=self.print_and_finalize,
-            style="PaymentGreen.TButton",
-        )
-        self.print_button.pack(pady=(15, 8))
-
-        # Create Close button (Ent - Blue)
-        self.close_button = ttk.Button(
-            main_frame,
-            text="Ent - Cerrar",
-            command=self.finalize_sale,
-            style="PaymentBlue.TButton",
-        )
-        self.close_button.pack(pady=(8, 20))
-
-        # Bind F2 to print and Enter to close
-        self.bind("<F2>", lambda e: self.print_and_finalize())
-        self.bind("<Return>", lambda e: self.finalize_sale())
-        self.bind("<KP_Enter>", lambda e: self.finalize_sale())
-
-    def print_ticket(self):
-        """Print ticket using ThermalPrinter or fallback to HTML."""
-        # Data preparation
-        business_info = {
-            'name': self.parent.settings["business_name"],
-            'address': self.parent.settings["address"],
-            'phone': self.parent.settings["phone"],
-            'cashier': self.parent.settings["cashier_name"],
-            'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
-        items = []
-        for item in self.parent.sale_items.values():
-            items.append({
-                'name': item["nombre"],
-                'qty': item["qty"],
-                'precio': item["precio"],
-                'descuento': item.get("descuento", 0),
-            })
-            
-        totals = {
-            'total': self.total,
-            'paid': self.amount_paid,
-            'change': self.change_value
-        }
-
-        # Try Thermal Printer first
-        if ThermalPrinter:
-            try:
-                printer = ThermalPrinter()
-                printer.print_ticket(business_info, items, totals)
-                return # Success
-            except Exception as e:
-                print(f"Thermal printer error: {e}")
-                messagebox.showwarning("Thermal Printer", f"Error printing to thermal printer: {e}\nGenerating HTML...")
-
-        ticket_template = self.get_ticket_template()
-
-        # Prepare items HTML with proper escaping
-        items_html = ""
-        for item in self.parent.sale_items.values():
-            name = (
-                item["nombre"]
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace('"', "&quot;")
-            )
-            descuento = item.get("descuento", 0)
-            subtotal = item["precio"] * item["qty"] * (1 - descuento / 100)
-            name_part = f"{name} (x{item['qty']})"
-            if descuento:
-                name_part = f"{name_part} -{descuento}%"
-            items_html += f'<tr><td>{name_part}</td><td>${subtotal:.2f}</td></tr>'
-
-        totals_html = f"""
-        <div class="total">Total: ${self.total:.2f}</div>
-        <div class="total">Efectivo: ${self.amount_paid:.2f}</div>
-        <div class="total">Cambio: ${self.change_value:.2f}</div>
-        """
-        
-        # Handle Logo
-        logo_html = ""
-        if self.parent.settings.get("logo_path") and os.path.exists(self.parent.settings["logo_path"]):
-             logo_html = f'<img src="file://{self.parent.settings["logo_path"]}" class="logo" alt="Logo">'
-
-        header_info = f"{business_info['address']}<br>Tel: {business_info['phone']}<br>Cajero: {business_info['cashier']}<br>Fecha: {business_info['date']}"
-
-        html_content = ticket_template.replace("{{logo}}", logo_html) \
-            .replace("{{business_name}}", business_info['name']) \
-            .replace("{{header_info}}", header_info) \
-            .replace("{{items}}", items_html) \
-            .replace("{{totals}}", totals_html)
-
-        # Save to temp file and open in browser
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as f:
-            f.write(html_content.encode("utf-8"))
-            temp_path = f.name
-        
-        webbrowser.open(f"file://{temp_path}")
-        
-    def print_and_finalize(self):
-        """Print ticket and then finalize sale."""
-        self.print_ticket()
-        self.finalize_sale()
-
-    def finalize_sale(self):
-        """Finalize the sale, clear ticket, and close window."""
-        try:
-            self.parent.store.record_sale(
-                self.parent.sale_items,
-                concepto=f"Venta Recibo #{self.parent.current_ticket_id}",
-            )
-        except Exception as exc:
-            messagebox.showerror(
-                "Error", f"No se pudo guardar la venta: {exc}", parent=self
-            )
+        if not amount_str or not concept:
+            messagebox.showwarning("Error", "Todos los campos son obligatorios.", parent=self)
             return
-        self.parent.clear_sale()
+
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            messagebox.showerror("Error", "Monto inválido.", parent=self)
+            return
+
+        if "Entrada" in self.title():
+            t_type = "Entrada"
+        else:
+            t_type = "Salida"
+
+        try:
+            self.parent.log_cash_flow(t_type, amount, concept)
+        except Exception as exc:
+            messagebox.showerror("Error", f"No se pudo registrar: {exc}", parent=self)
+            return
+
         self.destroy()
-
-    def on_closing(self):
-        """Handle window closing."""
-        self.destroy()
+        messagebox.showinfo("Éxito", "Transacción registrada.")
 
 
-class GeneralProductWindow(tk.Toplevel):
-    """Window for adding a general product (not in database)."""
-
+class GeneralProductWindow(ctk.CTkToplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -1336,169 +186,117 @@ class GeneralProductWindow(tk.Toplevel):
         self.configure(bg="#f0f0f0")
         self.transient(parent)
         self.grab_set()
-
         self.create_widgets()
 
     def create_widgets(self):
-        main_frame = ttk.Frame(self, padding="30")
+        main_frame = ctk.CTkFrame(self, padding="30")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(main_frame, text="Nombre del Producto:", font=("Arial", 18, "bold")).pack(pady=(0, 5), anchor=tk.W)
-        self.name_entry = ttk.Entry(main_frame, font=("Arial", 18))
-        self.name_entry.pack(fill=tk.X, pady=(0, 20))
-        self.name_entry.focus()
+        ctk.CTkLabel(main_frame, text="Nombre del Producto:", font=("Arial", 18, "bold")).pack(pady=(0, 5), anchor=tk.W)
+        self.name_entry = ctk.CTkEntry(main_frame, font=("Arial", 18))
+        self.name_entry.pack(pady=5, padx=20, fill=tk.X)
 
-        ttk.Label(main_frame, text="Precio:", font=("Arial", 18, "bold")).pack(pady=(0, 5), anchor=tk.W)
-        self.price_entry = ttk.Entry(main_frame, font=("Arial", 18))
-        self.price_entry.pack(fill=tk.X, pady=(0, 15))
+        ctk.CTkLabel(main_frame, text="Precio Unitario ($):", font=("Arial", 18, "bold")).pack(pady=(10, 5), anchor=tk.W)
+        self.price_entry = ctk.CTkEntry(main_frame, font=("Arial", 18))
+        self.price_entry.pack(pady=5, padx=20, fill=tk.X)
 
-        ttk.Label(main_frame, text="Cantidad:", font=("Arial", 18, "bold")).pack(pady=(0, 5), anchor=tk.W)
-        self.qty_entry = ttk.Entry(main_frame, font=("Arial", 18))
+        ctk.CTkLabel(main_frame, text="Cantidad:", font=("Arial", 18, "bold")).pack(pady=(10, 5), anchor=tk.W)
+        self.qty_entry = ctk.CTkEntry(main_frame, font=("Arial", 18))
+        self.qty_entry.pack(pady=5, padx=20, fill=tk.X)
         self.qty_entry.insert(0, "1")
-        self.qty_entry.pack(fill=tk.X, pady=(0, 15))
 
-        # Total section
-        self.total_label = ttk.Label(main_frame, text="Total: $0.00", font=("Arial", 24, "bold"), foreground="#28A745")
-        self.total_label.pack(pady=(10, 20))
+        ctk.CTkButton(main_frame, text="Agregar a Venta", command=self.add_to_sale, fg_color=ACCENT_COLOR, hover_color="#0056b3", font=("Arial", 14, "bold")).pack(pady=20)
 
-        # Update total when entries change
-        self.qty_entry.bind("<KeyRelease>", self.update_summary)
-        self.price_entry.bind("<KeyRelease>", self.update_summary)
-
-        # Buttons
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=10)
-
-        self.confirm_button = ttk.Button(
-            btn_frame,
-            text="Confirmar (Enter)",
-            command=self.confirm,
-            style="Success.TButton"
-        )
-        self.confirm_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
-
-        self.cancel_button = ttk.Button(
-            btn_frame,
-            text="Cancelar (Esc)",
-            command=self.destroy,
-            style="Danger.TButton"
-        )
-        self.cancel_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 0))
-
-        # Binds
-        self.bind("<Return>", lambda e: self.confirm())
-        self.bind("<KP_Enter>", lambda e: self.confirm())
-        self.bind("<Escape>", lambda e: self.destroy())
-
-    def update_summary(self, event=None):
-        try:
-            qty_text = self.qty_entry.get().strip()
-            price_text = self.price_entry.get().strip()
-            qty = float(qty_text) if qty_text else 0
-            price = float(price_text) if price_text else 0
-            total = qty * price
-            self.total_label.config(text=f"Total: ${total:.2f}")
-        except ValueError:
-            self.total_label.config(text="Valores inválidos")
-
-    def confirm(self):
+    def add_to_sale(self):
         name = self.name_entry.get().strip()
-        qty_str = self.qty_entry.get().strip()
         price_str = self.price_entry.get().strip()
+        qty_str = self.qty_entry.get().strip()
 
-        if not name or not qty_str or not price_str:
-            messagebox.showwarning("Error", "Todos los campos son obligatorios.", parent=self)
+        if not name or not price_str:
+            messagebox.showerror("Error", "Nombre y precio son requeridos.")
             return
 
         try:
-            qty = float(qty_str)
             price = float(price_str)
+            qty = float(qty_str) if qty_str else 1
         except ValueError:
-            messagebox.showerror("Error", "Cantidad y Precio deben ser números.", parent=self)
+            messagebox.showerror("Error", "Precio y cantidad deben ser números.")
             return
 
-        # Generate a unique barcode for this general product
-        barcode = f"GEN-{int(datetime.now().timestamp() * 1000)}"
-        
-        self.parent.sale_items[barcode] = {
-            "nombre": name,
-            "precio": price,
-            "qty": qty,
-        }
-
+        barcode = "GEN-" + name.replace(" ", "-").upper()[:20]
+        items = {barcode: {"nombre": name, "precio": price, "qty": qty, "descuento": 0}}
+        self.parent.store.record_sale(items, concepto=f"Venta General: {name}")
         self.parent.update_sale_list()
         self.parent.update_total()
         self.destroy()
 
 
-class EntryExitWindow(tk.Toplevel):
-    """Window for cash entry and exit."""
-
-    def __init__(self, parent, title, transaction_type):
+class EntryExitWindow(ctk.CTkToplevel):
+    def __init__(self, parent, title, t_type):
         super().__init__(parent)
         self.parent = parent
-        self.transaction_type = transaction_type
-        
         self.title(title)
         self.geometry("400x300")
-        self.configure(bg="#f0f0f0")
         self.transient(parent)
         self.grab_set()
-        
+        self.configure(bg="#f0f0f0")
+        self.t_type = t_type
         self.create_widgets()
 
     def create_widgets(self):
-        ttk.Label(self, text="Monto:", font=("Arial", 14, "bold")).pack(pady=10)
-        self.amount_entry = ttk.Entry(self, font=("Arial", 14))
-        self.amount_entry.pack(pady=5, padx=20, fill=tk.X)
-        self.amount_entry.focus()
-        
-        ttk.Label(self, text="Concepto:", font=("Arial", 14, "bold")).pack(pady=10)
-        self.concept_entry = ttk.Entry(self, font=("Arial", 14))
-        self.concept_entry.pack(pady=5, padx=20, fill=tk.X)
-        
-        # Bind keys to save or cancel
-        self.bind("<Return>", lambda e: self.save())
-        self.bind("<KP_Enter>", lambda e: self.save())
-        self.bind("<Escape>", lambda e: self.destroy())
+        ctk.CTkLabel(self, text=self.title(), font=("Arial", 18, "bold")).pack(pady=20)
 
-        ttk.Button(self, text="Ent - Guardar", command=self.save, style="Success.TButton").pack(pady=20)
+        form_frame = ctk.CTkFrame(self, padding=20)
+        form_frame.pack(fill=tk.BOTH, expand=True)
+
+        ctk.CTkLabel(form_frame, text="Tipo:").grid(row=0, column=0, sticky="w", pady=5)
+        type_var = tk.StringVar(value=self.t_type)
+        type_combo = ctk.CTkComboBox(form_frame, textvariable=type_var, values=["Entrada", "Salida"], state="readonly")
+        type_combo.grid(row=0, column=1, sticky="ew", pady=5)
+
+        ctk.CTkLabel(form_frame, text="Monto ($):").grid(row=1, column=0, sticky="w", pady=5)
+        self.amount_entry = ctk.CTkEntry(form_frame, font=("Arial", 14))
+        self.amount_entry.grid(row=1, column=1, sticky="ew", pady=5)
+
+        ctk.CTkLabel(form_frame, text="Concepto:").grid(row=2, column=0, sticky="w", pady=5)
+        self.concept_entry = ctk.CTkEntry(form_frame, font=("Arial", 14))
+        self.concept_entry.grid(row=2, column=1, sticky="ew", pady=5)
+
+        form_frame.columnconfigure(1, weight=1)
+
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(fill=tk.X, pady=10)
+
+        ctk.CTkButton(btn_frame, text="Cancelar", command=self.destroy).pack(side=tk.RIGHT, padx=5)
+        ctk.CTkButton(btn_frame, text="Guardar", command=self.save, fg_color=ACCENT_COLOR, hover_color="#0056b3").pack(side=tk.RIGHT, padx=5)
 
     def save(self):
         amount_str = self.amount_entry.get().strip()
         concept = self.concept_entry.get().strip()
-        
+
         if not amount_str or not concept:
             messagebox.showwarning("Error", "Todos los campos son obligatorios.", parent=self)
             return
-            
+
         try:
             amount = float(amount_str)
         except ValueError:
             messagebox.showerror("Error", "Monto inválido.", parent=self)
             return
-            
-        if "Entrada" in self.title():
-            t_type = "Entrada"
-        else:
-            t_type = "Salida"
+
+        t_type = self.t_type
 
         try:
             self.parent.log_cash_flow(t_type, amount, concept)
         except Exception as exc:
-            messagebox.showerror(
-                "Error", f"No se pudo registrar: {exc}", parent=self
-            )
+            messagebox.showerror("Error", f"No se pudo registrar: {exc}", parent=self)
             return
 
-        # Close window FIRST, then show message (or just close for faster workflow)
         self.destroy()
         messagebox.showinfo("Éxito", "Transacción registrada.")
 
 
-class CashClosureWindow(tk.Toplevel):
-    """Cash closure: sales, cash movements and difference for the day."""
-
+class CashClosureWindow(ctk.CTkToplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -1508,46 +306,37 @@ class CashClosureWindow(tk.Toplevel):
         self.configure(bg="#f0f0f0")
         self.transient(parent)
         self.grab_set()
-
-        frame = ttk.Frame(self, padding=20)
-        frame.pack(fill=tk.BOTH, expand=True)
-
-        ttk.Label(frame, text="Cierre de Caja", font=("Arial", 16, "bold")).pack(
-            pady=10
-        )
-        self.sales_label = ttk.Label(frame, text="Ventas: $0.00", font=("Arial", 12))
-        self.sales_label.pack()
-        self.entries_label = ttk.Label(frame, text="Entradas: $0.00", font=("Arial", 12))
-        self.entries_label.pack()
-        self.exits_label = ttk.Label(frame, text="Salidas: $0.00", font=("Arial", 12))
-        self.exits_label.pack()
-        self.net_label = ttk.Label(
-            frame, text="Neto esperado: $0.00", font=("Arial", 12, "bold")
-        )
-        self.net_label.pack()
-
-        ttk.Label(frame, text="Efectivo actual ($):", font=("Arial", 12)).pack(
-            pady=10
-        )
-        self.amount_var = tk.DoubleVar(value=0.0)
-        amount_entry = ttk.Entry(frame, textvariable=self.amount_var, font=("Arial", 12))
-        amount_entry.pack()
-
-        ttk.Button(frame, text="Cerrar Caja", command=self._close).pack(pady=20)
-
+        self._build_ui()
         self._load_totals()
 
+    def _build_ui(self):
+        frame = ctk.CTkFrame(self, padding=20)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ctk.CTkLabel(frame, text="Cierre de Caja", font=("Arial", 16, "bold")).pack(pady=10)
+        self.sales_label = ctk.CTkLabel(frame, text="Ventas: $0.00", font=("Arial", 12))
+        self.sales_label.pack()
+        self.entries_label = ctk.CTkLabel(frame, text="Entradas: $0.00", font=("Arial", 12))
+        self.entries_label.pack()
+        self.exits_label = ctk.CTkLabel(frame, text="Salidas: $0.00", font=("Arial", 12))
+        self.exits_label.pack()
+        self.net_label = ctk.CTkLabel(frame, text="Neto esperado: $0.00", font=("Arial", 12, "bold"))
+        self.net_label.pack()
+
+        ctk.CTkLabel(frame, text="Efectivo actual ($):", font=("Arial", 12)).pack(pady=10)
+        self.amount_var = tk.DoubleVar(value=0.0)
+        amount_entry = ctk.CTkEntry(frame, textvariable=self.amount_var, font=("Arial", 12))
+        amount_entry.pack()
+
+        ctk.CTkButton(frame, text="Cerrar Caja", command=self._close, fg_color=ACCENT_COLOR, hover_color="#0056b3", font=("Arial", 14, "bold")).pack(pady=20)
+
     def _load_totals(self):
-        today = datetime.now().date()
+        today = dt_module.date.today()
         sales = self.parent.store.sales_between(today, today)
         total_sales = sum(int(s["total_centavos"]) for s in sales) / 100
         cash = self.parent.store.cash_movements_between(today, today)
-        entries = sum(
-            int(m["monto_centavos"]) for m in cash if m["tipo"] == "entrada"
-        ) / 100
-        exits = sum(
-            int(m["monto_centavos"]) for m in cash if m["tipo"] == "salida"
-        ) / 100
+        entries = sum(int(m["monto_centavos"]) for m in cash if m["tipo"] == "entrada") / 100
+        exits = sum(int(m["monto_centavos"]) for m in cash if m["tipo"] == "salida") / 100
         net = entries - exits - total_sales
 
         self.sales_total = total_sales
@@ -1555,10 +344,10 @@ class CashClosureWindow(tk.Toplevel):
         self.exits_total = exits
         self.net_total = net
 
-        self.sales_label.config(text=f"Ventas: ${total_sales:.2f}")
-        self.entries_label.config(text=f"Entradas: ${entries:.2f}")
-        self.exits_label.config(text=f"Salidas: ${exits:.2f}")
-        self.net_label.config(text=f"Neto esperado: ${net:.2f}")
+        self.sales_label.configure(text=f"Ventas: ${total_sales:.2f}")
+        self.entries_label.configure(text=f"Entradas: ${entries:.2f}")
+        self.exits_label.configure(text=f"Salidas: ${exits:.2f}")
+        self.net_label.configure(text=f"Neto esperado: ${net:.2f}")
 
     def _close(self):
         actual = float(self.amount_var.get() or 0)
@@ -1576,11 +365,505 @@ class CashClosureWindow(tk.Toplevel):
         self.destroy()
 
 
+class POS_GUI(ctk.CTk):
+    def __init__(self, user_role="admin"):
+        super().__init__()
+        self.title("Punto de Venta")
+        self.geometry("1400x720")
+        self.resizable(True, True)
+        self.user_role = user_role
+        self.is_fullscreen = False
+
+        self.app_dir = str(config.app_dir())
+
+        self.store = store.Store()
+        self.settings = self.load_settings()
+        self.products = self.load_products()
+        self.active_tickets = {1: {}, 2: {}}
+        self.current_ticket_id = 1
+        self.sale_items = self.active_tickets[1]
+        self.last_added_barcode = None
+        self.search_timer = None
+
+        self.create_widgets()
+        self.update_time()
+        self.after(100, lambda: self.product_combobox.focus_set())
+
+        self.bind("<F11>", self.toggle_fullscreen)
+
+    def load_settings(self):
+        default_settings = {
+            "business_name": "Mi Tienda",
+            "address": "Calle Principal 123",
+            "phone": "555-0199",
+            "cashier_name": "Cajero",
+            "logo_path": "",
+        }
+        default_settings.update(self.store.get_settings())
+        return default_settings
+
+    def load_products(self):
+        return self.store.list_products()
+
+    def toggle_fullscreen(self, event=None):
+        self.is_fullscreen = not self.is_fullscreen
+        self.attributes("-fullscreen", self.is_fullscreen)
+        return "break"
+
+    def create_widgets(self):
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        self._create_top_frame(main_frame)
+
+        tree_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        tree_scroll = ttk.Scrollbar(tree_frame)
+        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.tree = ttk.Treeview(
+            tree_frame,
+            columns=("barcode", "name", "minus", "qty", "plus", "price", "descto", "total"),
+            show="headings",
+            height=8,
+        )
+
+        self.tree.heading("barcode", text="Código")
+        self.tree.heading("name", text="Producto")
+        self.tree.heading("minus", text=" − ")
+        self.tree.heading("qty", text="Cant.")
+        self.tree.heading("plus", text=" + ")
+        self.tree.heading("price", text="Precio Unitario")
+        self.tree.heading("descto", text="Desc %")
+        self.tree.heading("total", text="Total")
+
+        self.tree.column("barcode", anchor=tk.W, width=90, minwidth=70)
+        self.tree.column("name", anchor=tk.W, width=250, minwidth=180)
+        self.tree.column("minus", anchor=tk.CENTER, width=45, minwidth=40, stretch=False)
+        self.tree.column("qty", anchor=tk.CENTER, width=60, minwidth=50, stretch=False)
+        self.tree.column("plus", anchor=tk.CENTER, width=45, minwidth=40, stretch=False)
+        self.tree.column("price", anchor=tk.E, width=95, minwidth=80)
+        self.tree.column("descto", anchor=tk.E, width=70, minwidth=60)
+        self.tree.column("total", anchor=tk.E, width=110, minwidth=90)
+
+        self.tree.pack(fill=tk.BOTH, expand=True)
+        tree_scroll.config(command=self.tree.yview)
+
+        self.tree.bind("<Delete>", lambda e: self.delete_item())
+        self.tree.bind("<Up>", lambda e: self.navigate_tree("up"))
+        self.tree.bind("<Down>", lambda e: self.navigate_tree("down"))
+        self.tree.bind("<Button-1>", lambda e: self.on_tree_click(e))
+
+        bottom_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        bottom_frame.pack(fill=tk.X, pady=5)
+
+        self.button_frame = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        self.button_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        ctk.CTkButton(
+            self.button_frame,
+            text="Entradas",
+            command=self.open_entry_window,
+            fg_color=SUCCESS_COLOR,
+            hover_color="#1E7E34",
+            font=("Arial", 14, "bold"),
+        ).pack(side=tk.LEFT, padx=5)
+
+        ctk.CTkButton(
+            self.button_frame,
+            text="Salidas",
+            command=self.open_exit_window,
+            fg_color=DANGER_COLOR,
+            hover_color="#BD2130",
+            font=("Arial", 14, "bold"),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        self.status_label = ctk.CTkLabel(self.button_frame, text="", font=("Arial", 12))
+        self.status_label.pack(side=tk.LEFT, padx=(10, 0))
+
+        self.total_label = ctk.CTkLabel(bottom_frame, text="Total: $0.00", font=("Arial", 20, "bold"))
+        self.total_label.pack(side=tk.RIGHT, padx=20)
+
+        self.right_frame = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        self.right_frame.pack(side=tk.RIGHT, padx=20)
+
+        ctk.CTkButton(
+            self.right_frame,
+            text="Cierre de Caja",
+            command=self.open_cash_closure,
+            fg_color=ACCENT_COLOR,
+            hover_color="#0056b3",
+            font=("Arial", 14, "bold"),
+        ).pack(side=tk.LEFT, padx=5)
+
+        self.setup_accessibility()
+
+    def setup_accessibility(self):
+        """Configurar accesibilidad: orden de tabulación y indicador de foco."""
+        # Orden de tabulación explícito: producto -> acciones -> caja -> salir
+        widget_order = [
+            self.product_combobox,
+            self.tree,
+        ]
+        # Botones de entrada/salida
+        for child in self.button_frame.winfo_children():
+            if isinstance(child, ctk.CTkButton):
+                widget_order.append(child)
+        # Botón cierre de caja
+        for child in self.right_frame.winfo_children():
+            if isinstance(child, ctk.CTkButton):
+                widget_order.append(child)
+
+        for widget in widget_order:
+            widget.focus_set()  # asegurar que existe en el árbol de tabulación
+
+        # Establecer el foco inicial en el combobox de producto
+        self.product_combobox.focus_set()
+
+    def _on_focus_in(self, widget):
+        """Resaltar el widget con foco."""
+        try:
+            widget.configure(border_color=ACCENT_COLOR, border_width=2)
+        except Exception:
+            pass
+
+    def _on_focus_out(self, widget):
+        """Quitar el resaltado de foco."""
+        try:
+            widget.configure(border_color="", border_width=0)
+        except Exception:
+            pass
+
+    def _create_top_frame(self, parent):
+        top_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        top_frame.pack(fill=tk.X, pady=5)
+
+        ctk.CTkLabel(top_frame, text="PRODUCTO (Código o Nombre):", font=("Arial", 20, "bold")).pack(side=tk.LEFT, padx=(0, 10))
+
+        self.product_combobox = ctk.CTkComboBox(parent, values=[], font=("Arial", 18), width=300)
+        self.product_combobox.pack(side=tk.LEFT, padx=(0, 10))
+
+        # Fecha y hora
+        self.date_label = ctk.CTkLabel(top_frame, text="", font=("Arial", 14))
+        self.date_label.pack(side=tk.LEFT, padx=(20, 5))
+        self.time_label = ctk.CTkLabel(top_frame, text="", font=("Arial", 14, "bold"))
+        self.time_label.pack(side=tk.LEFT, padx=(5, 20))
+        self.product_combobox.bind("<Return>", self.add_product)
+        self.product_combobox.bind("<KP_Enter>", self.add_product)
+        self.product_combobox.bind("<KeyRelease>", self.show_suggestions)
+        self.product_combobox.bind("<<ComboboxSelected>>", self.add_product)
+
+    def update_time(self):
+        now = datetime.now()
+        dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        day_name = dias[now.weekday()]
+        month_name = meses[now.month - 1]
+        date_str = f"{day_name}, {now.day} de {month_name} de {now.year}"
+        time_str = now.strftime("%I:%M %p")
+
+        self.date_label.configure(text=date_str)
+        self.time_label.configure(text=time_str)
+        self.after(1000, self.update_time)
+
+    def load_settings(self):
+        default_settings = {
+            "business_name": "Mi Tienda",
+            "address": "Calle Principal 123",
+            "phone": "555-0199",
+            "cashier_name": "Cajero",
+            "logo_path": "",
+        }
+        default_settings.update(self.store.get_settings())
+        return default_settings
+
+    def load_products(self):
+        return self.store.list_products()
+
+    def record_sale(self, items, concepto=None, fecha_hora=None, origen="pos"):
+        prepared = []
+        total_cents = 0
+        for codigo, item in items.items():
+            quantity = Decimal(str(item["qty"]))
+            if not quantity.is_finite() or quantity <= 0:
+                raise ValueError(f"cantidad inválida: {item['qty']!r}")
+            unit_cents = money_to_cents(item["precio"])
+            line_total = line_total_cents(item["precio"], item["qty"])
+            prepared.append((normalize_code(codigo), str(item["nombre"]), float(quantity), unit_cents, line_total))
+            total_cents += line_total
+
+        if not prepared:
+            return None
+
+        timestamp = fecha_hora or datetime.now().isoformat(timespec="microseconds")
+        conn = self.store.conn
+        with database.transaction(conn):
+            cursor = conn.execute("INSERT INTO sales (fecha_hora, total_centavos, origen) VALUES (?, ?, ?)", (timestamp, total_cents, origen))
+            sale_id = cursor.lastrowid
+            for code, name, quantity, unit_cents, line_total in prepared:
+                product = conn.execute("SELECT id FROM products WHERE codigo = ? AND activo = 1", (code,)).fetchone()
+                product_id = product["id"] if product else None
+                conn.execute(
+                    "INSERT INTO sale_items (venta_id, producto_id, codigo, nombre, cantidad, precio_unitario_centavos, total_centavos) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (sale_id, product_id, code, name, quantity, unit_cents, line_total),
+                )
+                if product_id is not None:
+                    conn.execute("UPDATE products SET inventario = inventario - ? WHERE id = ?", (quantity, product_id))
+            conn.execute("INSERT INTO cash_movements (fecha_hora, tipo, monto_centavos, concepto) VALUES (?, 'venta', ?, ?)", (timestamp, total_cents, concepto or f"Venta #{sale_id}"))
+        return sale_id
+
+    def add_cash_movement(self, tipo, amount, concepto, fecha_hora=None):
+        kind = str(tipo or "").strip().lower()
+        if kind not in ("entrada", "salida", "venta"):
+            raise ValueError(f"tipo de movimiento inválido: {tipo!r}")
+        cents = abs(money_to_cents(amount))
+        if cents == 0:
+            raise ValueError("el monto debe ser distinto de cero")
+        timestamp = fecha_hora or datetime.now().isoformat(timespec="microseconds")
+        conn = self.store.conn
+        with database.transaction(conn):
+            cursor = conn.execute("INSERT INTO cash_movements (fecha_hora, tipo, monto_centavos, concepto) VALUES (?, ?, ?, ?)", (timestamp, kind, cents, str(concepto or "").strip()))
+        return cursor.lastrowid
+
+    def log_cash_flow(self, transaction_type, amount, concept):
+        kind = transaction_type.strip().lower()
+        if kind not in ("entrada", "salida"):
+            raise ValueError(f"tipo de movimiento inválido: {transaction_type}")
+        return self.store.add_cash_movement(kind, amount, concept)
+
+    def update_cash_movement(self, movement_id, tipo, amount, concepto):
+        kind = str(tipo or "").strip().lower()
+        if kind not in ("entrada", "salida", "venta"):
+            raise ValueError(f"tipo de movimiento inválido: {tipo!r}")
+        cents = abs(money_to_cents(amount))
+        if cents == 0:
+            raise ValueError("el monto debe ser distinto de cero")
+        conn = self.store.conn
+        with database.transaction(conn):
+            cursor = conn.execute("UPDATE cash_movements SET tipo = ?, monto_centavos = ?, concepto = ? WHERE id = ?", (kind, cents, str(concepto or "").strip(), movement_id))
+        if cursor.rowcount == 0:
+            raise KeyError(f"movimiento no encontrado: {movement_id}")
+
+    def delete_cash_movement(self, movement_id):
+        conn = self.store.conn
+        with database.transaction(conn):
+            cursor = conn.execute("DELETE FROM cash_movements WHERE id = ?", (movement_id,))
+        if cursor.rowcount == 0:
+            raise KeyError(f"movimiento no encontrado: {movement_id}")
+
+    def clear_sale(self):
+        self.active_tickets[self.current_ticket_id] = {}
+        self.sale_items = self.active_tickets[self.current_ticket_id]
+        self.update_sale_list()
+        self.update_total()
+        self.product_combobox.set("")
+        self.product_combobox.focus()
+
+    def reset_sale(self):
+        self.active_tickets[self.current_ticket_id] = {}
+        self.sale_items = self.active_tickets[self.current_ticket_id]
+        self.update_sale_list()
+        self.update_total()
+        self.product_combobox.set("")
+        self.product_combobox.focus()
+
+    def open_settings_window(self):
+        script_path = os.path.join(self.app_dir, "settings_gui.py")
+        if os.path.exists(script_path):
+            subprocess.Popen([sys.executable, script_path])
+
+    def open_products_window(self):
+        script_path = os.path.join(self.app_dir, "products_gui.py")
+        if os.path.exists(script_path):
+            subprocess.Popen([sys.executable, script_path])
+
+    def open_reports_window(self):
+        script_path = os.path.join(self.app_dir, "reports_gui.py")
+        if os.path.exists(script_path):
+            subprocess.Popen([sys.executable, script_path])
+
+    def open_entry_window(self):
+        """Open entry window for cash inflow."""
+        EntryExitWindow(self, "Entrada Efectivo", "entries")
+
+    def open_exit_window(self):
+        """Open exit window for cash outflow."""
+        EntryExitWindow(self, "Salida Efectivo", "exits")
+
+    def open_cash_closure(self):
+        """Open cash closure window."""
+        CashClosureWindow(self)
+
+    def log_cash_flow(self, transaction_type, amount, concept):
+        kind = transaction_type.strip().lower()
+        if kind not in ("entrada", "salida"):
+            raise ValueError(f"tipo de movimiento inválido: {transaction_type}")
+        return self.store.add_cash_movement(kind, amount, concept)
+
+    def show_suggestions(self, event=None):
+        if event and event.keysym in ["Up", "Down", "Left", "Right", "Return", "ISO_Left_Tab", "Tab"]:
+            return
+        if self.search_timer:
+            self.after_cancel(self.search_timer)
+        self.search_timer = self.after(3000, self.perform_search)
+
+    def perform_search(self):
+        search_term = self.product_combobox.get().strip()
+        if not search_term:
+            self.product_combobox.configure(values=[])
+            return
+        search_term = search_term.lower()
+        matches = []
+        for code, product in self.products.items():
+            search_target = f"{product['nombre']} {code}".lower()
+            if search_term in search_target:
+                matches.append((code, product["nombre"]))
+        self.product_combobox.configure(values=matches[:10])
+        if matches:
+            self.product_combobox.post()
+
+    def add_product(self, event=None):
+        if self.search_timer:
+            self.after_cancel(self.search_timer)
+            self.search_timer = None
+        try:
+            self.tk.call("ttk::combobox::Unpost", self.product_combobox._w)
+        except tk.TclError:
+            pass
+
+        search_term = self.product_combobox.get().strip()
+        if not search_term:
+            return "break"
+
+        qty = 1
+        base_term = search_term
+        if "(" in base_term and ")" in base_term:
+            possible_code = base_term.split("(")[-1].rstrip(")")
+            if possible_code in self.products:
+                base_term = possible_code
+
+        normalized_term = base_term.lstrip("0") or "0"
+
+        product = self.products.get(normalized_term)
+        barcode = normalized_term
+        if not product:
+            for code, prod in self.products.items():
+                if prod["nombre"].lower() == base_term.lower():
+                    product = prod
+                    barcode = code
+                    break
+
+        if not product:
+            search_terms = base_term.lower().split()
+            matches = []
+            for code, prod in self.products.items():
+                search_target = f"{prod['nombre']} {code}".lower()
+                if all(term in search_target for term in search_terms):
+                    matches.append((code, prod))
+            if len(matches) == 1:
+                barcode, product = matches[0]
+            elif len(matches) > 1:
+                self.status_label.configure(text=f"Múltiples coincidencias ({len(matches)}). Seleccione de la lista.")
+                self.after(2000, lambda: self.status_label.configure(text=""))
+                try:
+                    self.tk.call("ttk::combobox::Post", self.product_combobox._w)
+                except tk.TclError:
+                    pass
+                return "break"
+
+        if product:
+            if barcode in self.sale_items:
+                self.sale_items[barcode]["qty"] += qty
+            else:
+                self.sale_items[barcode] = {"nombre": product["nombre"], "precio": product["precio"], "qty": qty, "descuento": 0}
+            self.last_added_barcode = barcode
+            self.update_sale_list()
+            self.update_total()
+            for item_id in self.tree.get_children():
+                if self.tree.item(item_id, "tags") and self.tree.item(item_id, "tags")[0] == barcode:
+                    self.tree.selection_set(item_id)
+                    self.tree.see(item_id)
+                    break
+            self.product_combobox.set("")
+            self.product_combobox.focus()
+        else:
+            self.status_label.configure(text=f"Producto '{base_term}' no encontrado.")
+            self.after(2000, lambda: self.status_label.configure(text=""))
+            self.product_combobox.focus()
+        return "break"
+
+    def update_sale_list(self):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        for barcode, item in self.sale_items.items():
+            descuento = item.get("descuento", 0)
+            line_total = item["qty"] * item["precio"] * (1 - descuento / 100)
+            is_low_stock = self.products.get(barcode, {}).get("inventario", 0) <= 5
+            tags = [barcode]
+            if is_low_stock:
+                tags.append(self.tree_low_stock_tag)
+            if descuento:
+                tags.append(self.tree_disc_tag)
+            self.tree.insert("", tk.END, values=(barcode, item["nombre"], " − ", item["qty"], " + ", f"${item['precio']:.2f}", f"{descuento}%", f"${line_total:.2f}"), tags=tags)
+
+    def update_total(self):
+        total = sum(item["qty"] * item["precio"] * (1 - item.get("descuento", 0) / 100) for item in self.sale_items.values())
+        self.total_label.configure(text=f"Total: ${total:.2f}")
+        return total
+
+    def show_payment_window(self):
+        total = self.update_total()
+        if total > 0:
+            PaymentWindow(self, total)
+        else:
+            messagebox.showwarning("Venta Vacía", "No hay ítems en la venta.")
+            self.product_combobox.focus()
+
+    def on_closing(self):
+        for ticket_id, items in self.active_tickets.items():
+            if not items:
+                continue
+            try:
+                self.store.record_sale(items, concepto=f"Venta ticket {ticket_id} (cierre)")
+            except Exception as exc:
+                print(f"No se pudo guardar el ticket {ticket_id}: {exc}", file=sys.stderr)
+        self.store.close()
+        self.destroy()
+
+    def delete_item(self):
+        selected_item = self.tree.selection()
+        if selected_item:
+            item_id = selected_item[0]
+            barcode = self.tree.item(item_id, "tags")[0]
+            if barcode in self.sale_items:
+                del self.sale_items[barcode]
+                self.update_sale_list()
+                self.update_total()
+        else:
+            messagebox.showwarning("Advertencia", "Seleccione un ítem para eliminar.")
+        self.product_combobox.focus()
+
+    def navigate_tree(self, direction):
+        selected = self.tree.selection()
+        if not selected:
+            if self.tree.get_children():
+                self.tree.selection_set(self.tree.get_children()[0])
+            return
+        if direction == "up":
+            prev = self.tree.prev(selected[0])
+            if prev:
+                self.tree.selection_set(prev)
+        elif direction == "down":
+            next_item = self.tree.next(selected[0])
+            if next_item:
+                self.tree.selection_set(next_item)
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         role = sys.argv[1]
     else:
         role = "admin"
-    
     app = POS_GUI(user_role=role)
     app.mainloop()

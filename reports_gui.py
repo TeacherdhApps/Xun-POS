@@ -8,7 +8,8 @@ import tempfile
 import tkinter as tk
 import webbrowser
 from datetime import date, datetime, timedelta
-from tkinter import messagebox, ttk
+from tkinter import messagebox
+import customtkinter as ctk
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -51,21 +52,28 @@ except ImportError:
     exit()
 
 
-class ReportsApp(tk.Tk):
+# Palette
+ACCENT_COLOR = "#007BFF"
+SUCCESS_COLOR = "#28A745"
+DANGER_COLOR = "#DC3545"
+WHITE = "#FFFFFF"
+BLACK = "#1A1A1A"
+
+
+class ReportsApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Reportes de Ventas")
         self.geometry("1400x720")
         self.selected_report_date = date.today()
-        self.is_fullscreen = False  # Track fullscreen state
-        
+        self.is_fullscreen = False
+
         self.store = store.Store()
         if config.get_mode() == "demo":
             self.title(self.title() + " [DEMO]")
 
         self.settings = self.load_settings()
         self._initialized = False
-        self.create_styles()
         self.create_widgets()
         self._initialized = True
         self.load_report_for_date()
@@ -84,127 +92,6 @@ class ReportsApp(tk.Tk):
         default_settings.update(self.store.get_settings())
         return default_settings
 
-    def create_styles(self):
-        """Configure ttk styles."""
-        style = ttk.Style(self)
-        style.theme_use("clam")
-
-        # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
-        WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
-
-        # General styles
-        self.configure(bg=BG_COLOR)
-        style.configure("TFrame", background=BG_COLOR)
-        style.configure(
-            "TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=("Arial", 12)
-        )
-        style.configure("TButton", font=("Arial", 12, "bold"), padding=10)
-        style.map(
-            "TButton",
-            background=[("active", "#EAEAEA")],
-            foreground=[("active", BLACK)],
-        )
-
-        # Treeview styles
-        style.configure(
-            "Treeview",
-            font=("Arial", 12),
-            rowheight=30,
-            background=WHITE,
-            fieldbackground=WHITE,
-            foreground=TEXT_COLOR,
-        )
-        style.map("Treeview", background=[("selected", ACCENT_COLOR)])
-        style.configure(
-            "Treeview.Heading",
-            font=("Arial", 12, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
-        )
-
-        # Custom styles
-        style.configure("Big.TButton", font=("Arial", 12, "bold"), padding=8)
-        
-        # Action buttons uniform style
-        ACTION_FONT = ("Arial", 14, "bold")
-        ACTION_PADDING = 12
-
-        style.configure(
-            "Print.TButton",
-            foreground=WHITE,
-            background=SUCCESS_COLOR,
-            font=ACTION_FONT,
-            padding=ACTION_PADDING,
-        )
-        style.map("Print.TButton", background=[("active", "#218838")])
-
-        style.configure(
-            "Modify.TButton",
-            foreground=WHITE,
-            background=ACCENT_COLOR,
-            font=ACTION_FONT,
-            padding=ACTION_PADDING,
-        )
-        style.map("Modify.TButton", background=[("active", "#0056b3")])
-
-        style.configure(
-            "Danger.Action.TButton",
-            foreground=WHITE,
-            background=DANGER_COLOR,
-            font=ACTION_FONT,
-            padding=ACTION_PADDING,
-        )
-        style.map("Danger.Action.TButton", background=[("active", "#c82333")])
-
-        style.configure(
-            "Exit.TButton",
-            foreground=WHITE,
-            background="#000000",
-            font=ACTION_FONT,
-            padding=ACTION_PADDING,
-        )
-        style.map("Exit.TButton", background=[("active", "#333333")])
-
-        style.configure(
-            "Total.TLabel",
-            font=("Arial", 20, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
-        )
-        style.configure(
-            "Success.Total.TLabel",
-            font=("Arial", 20, "bold"),
-            background=BG_COLOR,
-            foreground=SUCCESS_COLOR,
-        )
-        style.configure(
-            "Danger.Total.TLabel",
-            font=("Arial", 20, "bold"),
-            background=BG_COLOR,
-            foreground=DANGER_COLOR,
-        )
-        style.configure(
-            "Net.Total.TLabel",
-            font=("Arial", 20, "bold"),
-            background=BG_COLOR,
-            foreground=ACCENT_COLOR,
-        )
-        style.configure(
-            "Date.TLabel",
-            font=("Arial", 18, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
-        )
-
-        style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Accent.TButton", background=[("active", "#0056b3")])
-
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode with F11."""
         self.is_fullscreen = not self.is_fullscreen
@@ -212,29 +99,29 @@ class ReportsApp(tk.Tk):
         return "break"
 
     def create_widgets(self):
-        main_frame = ttk.Frame(self, padding=8)
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        top_frame = ttk.Frame(main_frame, padding=8)
+        top_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         top_frame.pack(fill=tk.X)
 
         # Header Info Label
-        info_label = ttk.Label(
+        info_label = ctk.CTkLabel(
             top_frame,
             text="@Xun-POS",
             font=("Arial", 8),
-            foreground="#666666",
+            text_color="#666666",
         )
         info_label.pack(side=tk.RIGHT, anchor=tk.NE)
 
-        self.report_date_label = ttk.Label(
+        self.report_date_label = ctk.CTkLabel(
             top_frame,
             text=f"Reporte del: {self.selected_report_date.strftime('%Y-%m-%d')}",
-            style="Date.TLabel",
+            font=("Arial", 18, "bold"),
         )
         self.report_date_label.pack(pady=10)
 
-        cal_frame = ttk.Frame(main_frame, padding=12)
+        cal_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         cal_frame.pack(pady=8, fill=tk.X)
 
         # Configure grid columns for horizontal distribution
@@ -250,7 +137,7 @@ class ReportsApp(tk.Tk):
         cal_frame.columnconfigure(9, weight=1)  # Grafico button
 
         # Row 0: Calendar widgets and buttons
-        ttk.Label(cal_frame, text="Desde:", font=("Arial", 14, "bold")).grid(
+        ctk.CTkLabel(cal_frame, text="Desde:", font=("Arial", 14, "bold")).grid(
             row=0, column=0, padx=5, sticky="e"
         )
         self.start_cal = DateEntry(
@@ -265,7 +152,7 @@ class ReportsApp(tk.Tk):
         )
         self.start_cal.grid(row=0, column=1, padx=5, sticky="ew")
 
-        ttk.Label(cal_frame, text="Hasta:", font=("Arial", 14, "bold")).grid(
+        ctk.CTkLabel(cal_frame, text="Hasta:", font=("Arial", 14, "bold")).grid(
             row=0, column=2, padx=5, sticky="e"
         )
         self.end_cal = DateEntry(
@@ -284,49 +171,44 @@ class ReportsApp(tk.Tk):
         self.end_cal.bind("<<DateEntrySelected>>", self.on_date_change)
 
         # Spacer
-        ttk.Label(cal_frame, text="").grid(row=0, column=4, padx=20)
+        ctk.CTkLabel(cal_frame, text="").grid(row=0, column=4, padx=20)
 
-        # Add Print and Exit buttons
-        ttk.Button(
+        # Add Print button
+        ctk.CTkButton(
             cal_frame,
             text="F2 - Imprimir",
             command=self.print_report,
-            style="Print.TButton",
+            fg_color=SUCCESS_COLOR,
+            hover_color="#218838",
+            font=("Arial", 14, "bold"),
         ).grid(row=0, column=5, padx=5, sticky="ew")
 
-        ttk.Button(
+        # Add Grafico button
+        ctk.CTkButton(
             cal_frame,
             text="Gráfico - Ventas por día",
             command=self._open_sales_chart,
-            style="Accent.TButton",
-        ).grid(row=0, column=9, padx=5, sticky="ew")
-
-        ttk.Button(
-            cal_frame,
-            text="Gráfico - Ventas por día",
-            command=self._open_sales_chart,
-            style="Accent.TButton",
+            fg_color=ACCENT_COLOR,
+            hover_color="#0056b3",
+            font=("Arial", 14, "bold"),
         ).grid(row=0, column=9, padx=5, sticky="ew")
 
         ttk.Button(
             cal_frame,
             text="F6 - Modificar",
             command=self.modify_cash_flow,
-            style="Modify.TButton",
         ).grid(row=0, column=6, padx=5, sticky="ew")
 
         ttk.Button(
             cal_frame,
             text="F7 - Borrar",
             command=self.delete_cash_flow,
-            style="Danger.Action.TButton",
         ).grid(row=0, column=7, padx=5, sticky="ew")
 
         ttk.Button(
             cal_frame,
             text="F12 - Salir",
             command=self.exit_app,
-            style="Exit.TButton",
         ).grid(row=0, column=8, padx=5, sticky="ew")
 
         # Bind F2 and F12 keys
@@ -335,11 +217,11 @@ class ReportsApp(tk.Tk):
         self.bind("<F7>", lambda e: self.delete_cash_flow())
         self.bind("<F12>", lambda e: self.exit_app())
 
-        content_frame = ttk.Frame(main_frame)
+        content_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         content_frame.pack(fill=tk.BOTH, expand=True)
 
         # Left side for sales
-        sales_frame = ttk.LabelFrame(content_frame, text="Ventas", padding=8)
+        sales_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
         sales_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         self.report_tree = ttk.Treeview(
@@ -356,9 +238,7 @@ class ReportsApp(tk.Tk):
         self.report_tree.pack(fill=tk.BOTH, expand=True)
 
         # Right side for cash flow
-        cash_flow_frame = ttk.LabelFrame(
-            content_frame, text="Flujo de Caja", padding=8
-        )
+        cash_flow_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
         cash_flow_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         self.cash_flow_tree = ttk.Treeview(
@@ -377,7 +257,7 @@ class ReportsApp(tk.Tk):
         self.cash_flow_tree.pack(fill=tk.BOTH, expand=True)
 
         # Bottom summary - 4 columns layout
-        summary_frame = ttk.Frame(main_frame, padding=10)
+        summary_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         summary_frame.pack(fill=tk.X)
 
         # Create 4 equal columns
@@ -387,40 +267,42 @@ class ReportsApp(tk.Tk):
         summary_frame.columnconfigure(3, weight=1, uniform="totals")
 
         # Column 1: Total Sales
-        ventas_col = ttk.Frame(summary_frame)
+        ventas_col = ctk.CTkFrame(summary_frame, fg_color="transparent")
         ventas_col.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
-        ttk.Label(ventas_col, text="Ventas Totales", font=("Arial", 11, "bold")).pack()
-        self.report_total_label = ttk.Label(
-            ventas_col, text="$0.00", style="Total.TLabel"
+        ctk.CTkLabel(
+            ventas_col, text="Ventas Totales", font=("Arial", 11, "bold")
+        ).pack()
+        self.report_total_label = ctk.CTkLabel(
+            ventas_col, text="$0.00", font=("Arial", 20, "bold")
         )
         self.report_total_label.pack()
 
         # Column 2: Total Entries
-        entradas_col = ttk.Frame(summary_frame)
+        entradas_col = ctk.CTkFrame(summary_frame, fg_color="transparent")
         entradas_col.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
-        ttk.Label(
+        ctk.CTkLabel(
             entradas_col, text="Entradas Totales", font=("Arial", 11, "bold")
         ).pack()
-        self.entradas_total_label = ttk.Label(
-            entradas_col, text="$0.00", style="Success.Total.TLabel"
+        self.entradas_total_label = ctk.CTkLabel(
+            entradas_col, text="$0.00", font=("Arial", 20, "bold"), text_color=SUCCESS_COLOR
         )
         self.entradas_total_label.pack()
 
         # Column 3: Total Exits
-        salidas_col = ttk.Frame(summary_frame)
+        salidas_col = ctk.CTkFrame(summary_frame, fg_color="transparent")
         salidas_col.grid(row=0, column=2, padx=5, pady=5, sticky="nsew")
-        ttk.Label(salidas_col, text="Salidas Totales", font=("Arial", 11, "bold")).pack()
-        self.salidas_total_label = ttk.Label(
-            salidas_col, text="$0.00", style="Danger.Total.TLabel"
+        ctk.CTkLabel(salidas_col, text="Salidas Totales", font=("Arial", 11, "bold")).pack()
+        self.salidas_total_label = ctk.CTkLabel(
+            salidas_col, text="$0.00", font=("Arial", 20, "bold"), text_color=DANGER_COLOR
         )
         self.salidas_total_label.pack()
 
         # Column 4: Net Total
-        general_col = ttk.Frame(summary_frame)
+        general_col = ctk.CTkFrame(summary_frame, fg_color="transparent")
         general_col.grid(row=0, column=3, padx=5, pady=5, sticky="nsew")
-        ttk.Label(general_col, text="Total Neto", font=("Arial", 11, "bold")).pack()
-        self.net_total_label = ttk.Label(
-            general_col, text="$0.00", style="Net.Total.TLabel"
+        ctk.CTkLabel(general_col, text="Total Neto", font=("Arial", 11, "bold")).pack()
+        self.net_total_label = ctk.CTkLabel(
+            general_col, text="$0.00", font=("Arial", 20, "bold"), text_color=ACCENT_COLOR
         )
         self.net_total_label.pack()
 
@@ -446,7 +328,7 @@ class ReportsApp(tk.Tk):
     def load_report_for_date_range(self):
         start_date = self.start_cal.get_date()
         end_date = self.end_cal.get_date()
-        self.report_date_label.config(
+        self.report_date_label.configure(
             text=f"Reporte Desde: {start_date.strftime('%Y-%m-%d')} Hasta: {end_date.strftime('%Y-%m-%d')}"
         )
         self.load_report_for_date(start_date, end_date)
@@ -458,11 +340,11 @@ class ReportsApp(tk.Tk):
             end_date = self.selected_report_date
 
         if start_date == end_date:
-            self.report_date_label.config(
+            self.report_date_label.configure(
                 text=f"Reporte del: {start_date.strftime('%Y-%m-%d')}"
             )
         else:
-            self.report_date_label.config(
+            self.report_date_label.configure(
                 text=f"Reporte Desde: {start_date.strftime('%Y-%m-%d')} Hasta: {end_date.strftime('%Y-%m-%d')}"
             )
         for i in self.report_tree.get_children():
@@ -515,18 +397,18 @@ class ReportsApp(tk.Tk):
             elif movement["tipo"] == "salida":
                 exits_total += amount
 
-        self.report_total_label.config(text=f"${daily_total:.2f}")
-        self.entradas_total_label.config(text=f"${entries_total:.2f}")
-        self.salidas_total_label.config(text=f"${exits_total:.2f}")
+        self.report_total_label.configure(text=f"${daily_total:.2f}")
+        self.entradas_total_label.configure(text=f"${entries_total:.2f}")
+        self.salidas_total_label.configure(text=f"${exits_total:.2f}")
         net_total = daily_total + entries_total - exits_total
-        self.net_total_label.config(text=f"${net_total:.2f}")
+        self.net_total_label.configure(text=f"${net_total:.2f}")
 
     def print_report(self):
         """Print the current report to thermal printer or export to HTML."""
         # Get current date range
         start_date = self.start_cal.get_date()
         end_date = self.end_cal.get_date()
-        
+
         # Gather data for printer
         sales_data = []
         for item in self.report_tree.get_children():
@@ -549,7 +431,7 @@ class ReportsApp(tk.Tk):
                 'amount': values[2],
                 'concept': values[3]
             })
-            
+
         totals = {
             'sales': self.report_total_label.cget("text"),
             'entries': self.entradas_total_label.cget("text"),
@@ -646,9 +528,9 @@ class ReportsApp(tk.Tk):
 
         # Generate HTML (Thermal Printer Style)
         html = f"""<!DOCTYPE html>
-<html lang=\"es">
+<html lang=\"es\">
 <head>
-    <meta charset="UTF-8">
+    <meta charset=\"UTF-8\">
     <title>Reporte de Ventas - {start_date.strftime("%Y-%m-%d")} to {end_date.strftime("%Y-%m-%d")}</title>
     <style>
         body {{
@@ -791,42 +673,41 @@ class ReportsApp(tk.Tk):
         # values: [time, type, amount, concept]
         # Use the tag to get the database row id
         movement_id = int(item["tags"][0]) if item["tags"] else None
-        
+
         # Create edit dialog
-        edit_window = tk.Toplevel(self)
+        edit_window = ctk.CTkToplevel(self)
         edit_window.title("Modificar Movimiento")
         edit_window.geometry("400x350")
         edit_window.transient(self)
         edit_window.grab_set()
-        edit_window.configure(bg="#F0F0F0")
 
         # Center window
         x = self.winfo_x() + (self.winfo_width() // 2) - 200
         y = self.winfo_y() + (self.winfo_height() // 2) - 175
         edit_window.geometry(f"+{x}+{y}")
 
-        ttk.Label(edit_window, text="Modificar Movimiento", font=("Arial", 14, "bold")).pack(pady=10)
+        ctk.CTkLabel(edit_window, text="Modificar Movimiento", font=("Arial", 14, "bold")).pack(pady=10)
 
-        form_frame = ttk.Frame(edit_window, padding=20)
-        form_frame.pack(fill=tk.BOTH, expand=True)
+        form_frame = ctk.CTkFrame(edit_window, fg_color="transparent")
+        form_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
 
         # Type (Editable Combobox)
-        ttk.Label(form_frame, text="Tipo:").grid(row=0, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(form_frame, text="Tipo:").grid(row=0, column=0, sticky="w", pady=5)
         type_var = tk.StringVar(value=values[1])
-        type_combo = ttk.Combobox(form_frame, textvariable=type_var, values=["Entrada", "Salida"], state="readonly")
+        type_combo = ctk.CTkComboBox(form_frame, textvariable=type_var, values=["Entrada", "Salida"], state="readonly")
         type_combo.grid(row=0, column=1, sticky="ew", pady=5)
 
         # Amount
-        ttk.Label(form_frame, text="Monto ($):").grid(row=1, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(form_frame, text="Monto ($):").grid(row=1, column=0, sticky="w", pady=5)
         amount_str = str(values[2]).replace("$", "").replace(",", "")
         amount_var = tk.DoubleVar(value=float(amount_str))
-        amount_entry = ttk.Entry(form_frame, textvariable=amount_var)
+        amount_entry = ctk.CTkEntry(form_frame, textvariable=amount_var)
         amount_entry.grid(row=1, column=1, sticky="ew", pady=5)
 
         # Concept
-        ttk.Label(form_frame, text="Concepto:").grid(row=2, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(form_frame, text="Concepto:").grid(row=2, column=0, sticky="w", pady=5)
         concept_var = tk.StringVar(value=values[3])
-        concept_entry = ttk.Entry(form_frame, textvariable=concept_var)
+        concept_entry = ctk.CTkEntry(form_frame, textvariable=concept_var)
         concept_entry.grid(row=2, column=1, sticky="ew", pady=5)
 
         form_frame.columnconfigure(1, weight=1)
@@ -836,7 +717,7 @@ class ReportsApp(tk.Tk):
                 new_type = type_var.get()
                 new_amount = amount_var.get()
                 new_concept = concept_var.get().strip()
-                
+
                 if not new_concept:
                     messagebox.showerror("Error", "El concepto no puede estar vacío", parent=edit_window)
                     return
@@ -861,11 +742,11 @@ class ReportsApp(tk.Tk):
                 messagebox.showerror("Error", f"Error al guardar: {e}", parent=edit_window)
 
         # Buttons
-        btn_frame = ttk.Frame(edit_window, padding=10)
-        btn_frame.pack(fill=tk.X)
-        
-        ttk.Button(btn_frame, text="Cancelar", command=edit_window.destroy).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(btn_frame, text="Guardar", command=save_changes, style="Accent.TButton").pack(side=tk.RIGHT, padx=5)
+        btn_frame = ctk.CTkFrame(edit_window, fg_color="transparent")
+        btn_frame.pack(fill=tk.X, pady=10)
+
+        ctk.CTkButton(btn_frame, text="Cancelar", command=edit_window.destroy).pack(side=tk.RIGHT, padx=5)
+        ctk.CTkButton(btn_frame, text="Guardar", command=save_changes, fg_color=ACCENT_COLOR, hover_color="#0056b3").pack(side=tk.RIGHT, padx=5)
 
     def delete_cash_flow(self):
         """Delete selected cash flow entry."""
@@ -882,30 +763,29 @@ class ReportsApp(tk.Tk):
         movement_id = int(item["tags"][0]) if item["tags"] else None
 
         # Custom Spanish Confirmation Dialog
-        confirm_dialog = tk.Toplevel(self)
+        confirm_dialog = ctk.CTkToplevel(self)
         confirm_dialog.title("Confirmar Borrado")
         confirm_dialog.geometry("450x250")
         confirm_dialog.resizable(False, False)
         confirm_dialog.transient(self)
         confirm_dialog.grab_set()
-        confirm_dialog.configure(bg="#F0F0F0")
 
         # Center window
         x = self.winfo_x() + (self.winfo_width() // 2) - 225
         y = self.winfo_y() + (self.winfo_height() // 2) - 125
         confirm_dialog.geometry(f"+{x}+{y}")
 
-        ttk.Label(confirm_dialog, text="¿Está seguro de que desea borrar este movimiento?", 
-                  font=("Arial", 12, "bold"), wraplength=400, justify="center").pack(pady=20)
-        
-        details_frame = ttk.Frame(confirm_dialog, padding=10)
-        details_frame.pack(fill=tk.X)
-        
-        details_text = f"Fecha: {values[0]}\nTipo: {values[1]} | Monto: {values[2]}\nConcepto: {values[3]}"
-        ttk.Label(details_frame, text=details_text, font=("Arial", 10), justify="center").pack()
+        ctk.CTkLabel(confirm_dialog, text="¿Está seguro de que desea borrar este movimiento?",
+                     font=("Arial", 12, "bold"), wraplength=400).pack(pady=20)
 
-        btn_frame = ttk.Frame(confirm_dialog, padding=20)
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        details_frame = ctk.CTkFrame(confirm_dialog, fg_color="transparent")
+        details_frame.pack(fill=tk.X, pady=10)
+
+        details_text = f"Fecha: {values[0]}\nTipo: {values[1]} | Monto: {values[2]}\nConcepto: {values[3]}"
+        ctk.CTkLabel(details_frame, text=details_text, font=("Arial", 10)).pack()
+
+        btn_frame = ctk.CTkFrame(confirm_dialog, fg_color="transparent")
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=20)
 
         self.confirm_res = False
 
@@ -917,8 +797,8 @@ class ReportsApp(tk.Tk):
             self.confirm_res = False
             confirm_dialog.destroy()
 
-        ttk.Button(btn_frame, text="No", command=on_no).pack(side=tk.RIGHT, padx=10)
-        ttk.Button(btn_frame, text="Sí", command=on_yes, style="Accent.TButton").pack(side=tk.RIGHT, padx=10)
+        ctk.CTkButton(btn_frame, text="No", command=on_no).pack(side=tk.RIGHT, padx=10)
+        ctk.CTkButton(btn_frame, text="Sí", command=on_yes, fg_color=ACCENT_COLOR, hover_color="#0056b3").pack(side=tk.RIGHT, padx=10)
 
         # Binds
         confirm_dialog.bind("<Return>", lambda e: on_yes())
@@ -945,7 +825,7 @@ class ReportsApp(tk.Tk):
         sales = self.store.sales_between(start, end)
         totals = _sales_by_day(sales)
 
-        window = tk.Toplevel(self)
+        window = ctk.CTkToplevel(self)
         window.title("Ventas por día")
         window.geometry("640x400")
         window.transient(self)

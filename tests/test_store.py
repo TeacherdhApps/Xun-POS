@@ -333,3 +333,79 @@ def test_restore_legacy_csv_zip(data_dir, db_path, tmp_path):
     assert restored.get_product("1")["nombre"] == "Pan"
     assert restored.get_settings()["business_name"] == "Viejo"
     restored.close()
+
+
+def test_cierre_de_caja_cuadra_al_centavo(repo):
+    """Cierre de caja: ventas del día + entradas/salidas cuadra al centavo."""
+    repo.replace_products(
+        [{"codigo": "1", "nombre": "Pan", "precio": "10.00", "inventario": "10"}]
+    )
+
+    # Venta de 10.00
+    repo.record_sale(
+        {"1": {"nombre": "Pan", "precio": 10.0, "qty": 1}},
+        fecha_hora="2026-01-18T10:00:00",
+    )
+
+    # Entrada de 50.00
+    repo.add_cash_movement(
+        "Entrada", "50.00", "caja inicial", fecha_hora="2026-01-18T08:00:00"
+    )
+
+    # Salida de 5.00
+    repo.add_cash_movement(
+        "Salida", "5.00", "gastos", fecha_hora="2026-01-18T09:00:00"
+    )
+
+    today = date(2026, 1, 18)
+    sales = repo.sales_between(today, today)
+    cash = repo.cash_movements_between(today, today)
+
+    total_sales = sum(int(s["total_centavos"]) for s in sales)
+    entries = sum(int(m["monto_centavos"]) for m in cash if m["tipo"] == "entrada")
+    exits = sum(int(m["monto_centavos"]) for m in cash if m["tipo"] == "salida")
+
+    neto = entries - exits - total_sales
+
+    assert total_sales == 1000
+    assert entries == 5000
+    assert exits == 500
+    assert neto == 3500
+
+
+def test_cierre_de_caja_cuadra_al_centavo(repo):
+    """Cierre de caja: ventas del día + entradas/salidas cuadra al centavo."""
+    repo.replace_products(
+        [{"codigo": "1", "nombre": "Pan", "precio": "10.00", "inventario": "10"}]
+    )
+
+    # Venta de 10.00
+    repo.record_sale(
+        {"1": {"nombre": "Pan", "precio": 10.0, "qty": 1}},
+        fecha_hora="2026-01-18T10:00:00",
+    )
+
+    # Entrada de 50.00
+    repo.add_cash_movement(
+        "Entrada", "50.00", "caja inicial", fecha_hora="2026-01-18T08:00:00"
+    )
+
+    # Salida de 5.00
+    repo.add_cash_movement(
+        "Salida", "5.00", "gastos", fecha_hora="2026-01-18T09:00:00"
+    )
+
+    today = date(2026, 1, 18)
+    sales = repo.sales_between(today, today)
+    cash = repo.cash_movements_between(today, today)
+
+    total_sales = sum(int(s["total_centavos"]) for s in sales)
+    entries = sum(int(m["monto_centavos"]) for m in cash if m["tipo"] == "entrada")
+    exits = sum(int(m["monto_centavos"]) for m in cash if m["tipo"] == "salida")
+
+    neto = entries - exits - total_sales
+
+    assert total_sales == 1000
+    assert entries == 5000
+    assert exits == 500
+    assert neto == 3500

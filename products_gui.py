@@ -11,6 +11,7 @@ import store
 import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
+import customtkinter as ctk
 
 # Prevent execution on Windows OS
 if platform.system() == "Windows":
@@ -23,14 +24,22 @@ if platform.system() == "Windows":
     print("=" * 60)
     sys.exit(1)
 
+# Palette
+ACCENT_COLOR = "#007BFF"
+SUCCESS_COLOR = "#28A745"
+DANGER_COLOR = "#DC3545"
+TEXT_COLOR = "#212529"
+WHITE = "#FFFFFF"
+BLACK = "#1A1A1A"
 
-class ProductsApp(tk.Tk):
+
+class ProductsApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Gestión de Productos - Doble clic para editar")
         self.geometry("1400x720")
         self.is_fullscreen = False
-        
+
         self.store = store.Store()
         if config.get_mode() == "demo":
             self.title(self.title() + " [DEMO]")
@@ -40,9 +49,8 @@ class ProductsApp(tk.Tk):
         self.current_sort_col = None
         self.current_sort_reverse = False
 
-        self.create_styles()
         self.create_widgets()
-        
+
         # Load data
         self.load_data_into_memory()
         self.populate_treeview(self.all_products)
@@ -52,70 +60,6 @@ class ProductsApp(tk.Tk):
         # Bind F12 to exit
         self.bind("<F12>", lambda e: self.exit_app())
 
-    def create_styles(self):
-        """Configure ttk styles."""
-        style = ttk.Style(self)
-        style.theme_use("clam")
-
-        # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
-        WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
-
-        # General styles
-        self.configure(bg=BG_COLOR)
-        style.configure("TFrame", background=BG_COLOR)
-        style.configure(
-            "TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=("Arial", 12)
-        )
-        style.configure("TButton", font=("Arial", 14, "bold"), padding=10)
-        style.map(
-            "TButton",
-            background=[("active", "#EAEAEA")],
-            foreground=[("active", BLACK)],
-        )
-        style.configure(
-            "TEntry",
-            font=("Arial", 14),
-            fieldbackground=WHITE,
-            foreground=TEXT_COLOR,
-            padding=10,
-        )
-
-        # Treeview styles
-        style.configure(
-            "Treeview",
-            font=("Arial", 12),
-            rowheight=40,
-            background=WHITE,
-            fieldbackground=WHITE,
-            foreground=TEXT_COLOR,
-        )
-        style.map("Treeview", background=[("selected", ACCENT_COLOR)])
-        style.configure(
-            "Treeview.Heading",
-            font=("Arial", 12, "bold"),
-            background=BG_COLOR,
-            foreground=BLACK,
-        )
-
-        # Custom Button styles
-        style.configure("Accent.TButton", foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Accent.TButton", background=[("active", "#0056b3")])
-
-        style.configure("Success.TButton", foreground=WHITE, background=SUCCESS_COLOR)
-        style.map("Success.TButton", background=[("active", "#1E7E34")])
-
-        style.configure("Danger.TButton", foreground=WHITE, background=DANGER_COLOR)
-        style.map("Danger.TButton", background=[("active", "#BD2130")])
-
-        style.configure("Exit.TButton", foreground=WHITE, background="#000000")
-        style.map("Exit.TButton", background=[("active", "#333333")])
-
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode with F11."""
         self.is_fullscreen = not self.is_fullscreen
@@ -123,45 +67,50 @@ class ProductsApp(tk.Tk):
         return "break"
 
     def create_widgets(self):
-        main_frame = ttk.Frame(self, padding="5")
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Header with @Xun-POS
-        header_frame = ttk.Frame(main_frame)
+        header_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         header_frame.pack(fill=tk.X, pady=(0, 2))
-        
-        info_label = ttk.Label(
+
+        info_label = ctk.CTkLabel(
             header_frame,
             text="@Xun-POS",
             font=("Arial", 8),
-            foreground="#666666",
+            text_color="#666666",
         )
-        info_label.pack(side=tk.RIGHT)
+        info_label.pack(side=tk.RIGHT, anchor=tk.NE)
 
         # --- Search and Filter Section ---
-        search_frame = ttk.Frame(main_frame)
+        search_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         search_frame.pack(fill=tk.X, pady=(0, 5))
 
-        ttk.Label(search_frame, text="Buscar:", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=(0, 5))
-        
+        ctk.CTkLabel(search_frame, text="Buscar:", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=(0, 5))
+
         self.search_var = tk.StringVar()
         self.search_var.trace("w", self.filter_products)
-        search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=40)
+        search_entry = ctk.CTkEntry(search_frame, textvariable=self.search_var, width=40, font=("Arial", 12))
         search_entry.pack(side=tk.LEFT, padx=5)
 
-        ttk.Label(search_frame, text="por", font=("Arial", 12)).pack(side=tk.LEFT, padx=5)
-        
+        ctk.CTkLabel(search_frame, text="por", font=("Arial", 12)).pack(side=tk.LEFT, padx=5)
+
         self.filter_column = tk.StringVar(value="Nombre")
-        filter_combo = ttk.Combobox(search_frame, textvariable=self.filter_column, 
-                                    values=["Nombre", "Código", "Precio", "Inventario"], 
-                                    state="readonly", font=("Arial", 12), width=15)
+        filter_combo = ctk.CTkComboBox(
+            search_frame,
+            textvariable=self.filter_column,
+            values=["Nombre", "Código", "Precio", "Inventario"],
+            state="readonly",
+            font=("Arial", 12),
+            width=150,
+        )
         filter_combo.pack(side=tk.LEFT, padx=5)
         filter_combo.bind("<<ComboboxSelected>>", self.filter_products)
 
         # Treeview for products
-        tree_frame = ttk.Frame(main_frame)
-        tree_frame.pack(fill=tk.X, pady=(0, 15))
-        
+        tree_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+
         # Add scrollbar
         tree_scroll = ttk.Scrollbar(tree_frame)
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -171,7 +120,7 @@ class ProductsApp(tk.Tk):
             columns=("codigo", "nombre", "precio", "inventario"),
             show="headings",
             yscrollcommand=tree_scroll.set,
-            height=6
+            height=6,
         )
         tree_scroll.config(command=self.tree.yview)
 
@@ -180,9 +129,9 @@ class ProductsApp(tk.Tk):
             "codigo": "Código",
             "nombre": "Nombre Producto",
             "precio": "Precio",
-            "inventario": "Inventario"
+            "inventario": "Inventario",
         }
-        
+
         for col, text in columns.items():
             self.tree.heading(col, text=text, command=lambda c=col: self.sort_treeview(c))
             self.tree.column(col, anchor="w" if col in ["codigo", "nombre"] else "center")
@@ -191,57 +140,57 @@ class ProductsApp(tk.Tk):
         self.tree.bind("<Double-1>", self.on_double_click)
 
         # Separator line
-        separator = ttk.Separator(main_frame, orient="horizontal")
+        separator = ctk.CTkFrame(main_frame, height=2, fg_color="gray")
         separator.pack(fill=tk.X, pady=(0, 15))
 
         # Section title for adding new product
-        title_label = ttk.Label(
+        title_label = ctk.CTkLabel(
             main_frame,
             text="AGREGAR NUEVO PRODUCTO",
             font=("Arial", 16, "bold"),
-            foreground="#007BFF",
+            text_color=ACCENT_COLOR,
         )
         title_label.pack(pady=(0, 15))
 
         # Entry fields for adding a new product
-        form_frame = ttk.Frame(main_frame, padding="15")
+        form_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         form_frame.pack(fill=tk.X, pady=(0, 15))
 
         for i in range(4):
             form_frame.grid_columnconfigure(i, weight=1, uniform="col")
 
         # Column 1 - Barcode
-        ttk.Label(
+        ctk.CTkLabel(
             form_frame, text="CÓDIGO:", font=("Arial", 14, "bold")
         ).grid(row=0, column=0, padx=15, pady=(0, 8), sticky="w")
-        self.barcode_entry = ttk.Entry(form_frame, font=("Arial", 16), width=15)
+        self.barcode_entry = ctk.CTkEntry(form_frame, font=("Arial", 16), width=15)
         self.barcode_entry.grid(
             row=1, column=0, padx=15, pady=(0, 10), sticky="ew", ipady=8
         )
 
         # Column 2 - Product Name
-        ttk.Label(
+        ctk.CTkLabel(
             form_frame, text=" NOMBRE PRODUCTO:", font=("Arial", 14, "bold")
         ).grid(row=0, column=1, padx=15, pady=(0, 8), sticky="w")
-        self.name_entry = ttk.Entry(form_frame, font=("Arial", 16), width=15)
+        self.name_entry = ctk.CTkEntry(form_frame, font=("Arial", 16), width=15)
         self.name_entry.grid(
             row=1, column=1, padx=15, pady=(0, 10), sticky="ew", ipady=8
         )
 
         # Column 3 - Price
-        ttk.Label(form_frame, text="PRECIO:", font=("Arial", 14, "bold")).grid(
+        ctk.CTkLabel(form_frame, text="PRECIO:", font=("Arial", 14, "bold")).grid(
             row=0, column=2, padx=15, pady=(0, 8), sticky="w"
         )
-        self.price_entry = ttk.Entry(form_frame, font=("Arial", 16), width=15)
+        self.price_entry = ctk.CTkEntry(form_frame, font=("Arial", 16), width=15)
         self.price_entry.grid(
             row=1, column=2, padx=15, pady=(0, 10), sticky="ew", ipady=8
         )
 
         # Column 4 - Inventory
-        ttk.Label(form_frame, text="INVENTARIO:", font=("Arial", 14, "bold")).grid(
+        ctk.CTkLabel(form_frame, text="INVENTARIO:", font=("Arial", 14, "bold")).grid(
             row=0, column=3, padx=15, pady=(0, 8), sticky="w"
         )
-        self.inventory_entry = ttk.Entry(form_frame, font=("Arial", 16), width=15)
+        self.inventory_entry = ctk.CTkEntry(form_frame, font=("Arial", 16), width=15)
         self.inventory_entry.grid(
             row=1, column=3, padx=15, pady=(0, 10), sticky="ew", ipady=8
         )
@@ -252,38 +201,46 @@ class ProductsApp(tk.Tk):
             entry.bind("<KP_Enter>", lambda e: self.add_product())
 
         # Buttons
-        button_frame = ttk.Frame(main_frame)
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         button_frame.pack(fill=tk.X, pady=(10, 10))
 
         for i in range(4):
             button_frame.grid_columnconfigure(i, weight=1, uniform="btn")
 
-        ttk.Button(
+        ctk.CTkButton(
             button_frame,
             text="Agregar Producto",
             command=self.add_product,
-            style="Success.TButton",
+            fg_color=SUCCESS_COLOR,
+            hover_color="#1E7E34",
+            font=("Arial", 14, "bold"),
         ).grid(row=0, column=0, padx=5, sticky="ew")
 
-        ttk.Button(
+        ctk.CTkButton(
             button_frame,
             text="Eliminar Seleccionado",
             command=self.delete_product,
-            style="Danger.TButton",
+            fg_color=DANGER_COLOR,
+            hover_color="#BD2130",
+            font=("Arial", 14, "bold"),
         ).grid(row=0, column=1, padx=5, sticky="ew")
 
-        ttk.Button(
+        ctk.CTkButton(
             button_frame,
             text="Guardar Cambios",
             command=self.save_to_csv,
-            style="Accent.TButton",
+            fg_color=ACCENT_COLOR,
+            hover_color="#0056b3",
+            font=("Arial", 14, "bold"),
         ).grid(row=0, column=2, padx=5, sticky="ew")
 
-        ttk.Button(
+        ctk.CTkButton(
             button_frame,
             text="F12 - Salir",
             command=self.exit_app,
-            style="Exit.TButton",
+            fg_color="#000000",
+            hover_color="#333333",
+            font=("Arial", 14, "bold"),
         ).grid(row=0, column=3, padx=5, sticky="ew")
 
     def load_data_into_memory(self):
@@ -299,7 +256,7 @@ class ProductsApp(tk.Tk):
         # Clear existing items
         for i in self.tree.get_children():
             self.tree.delete(i)
-        
+
         for p in products:
             self.tree.insert("", tk.END, values=(p['codigo'], p['nombre'], p['precio'], p['inventario']))
 
@@ -307,13 +264,13 @@ class ProductsApp(tk.Tk):
         """Filter products based on search criteria."""
         search_term = self.search_var.get().lower()
         filter_by = self.filter_column.get()
-        
+
         # Map friendly names to keys
         key_map = {
             "Nombre": "nombre",
             "Código": "codigo",
             "Precio": "precio",
-            "Inventario": "inventario"
+            "Inventario": "inventario",
         }
         key = key_map.get(filter_by, "nombre")
 
@@ -321,7 +278,7 @@ class ProductsApp(tk.Tk):
         for p in self.all_products:
             if search_term in str(p[key]).lower():
                 filtered.append(p)
-        
+
         self.populate_treeview(filtered)
 
     def sort_treeview(self, col):
@@ -332,9 +289,6 @@ class ProductsApp(tk.Tk):
             self.current_sort_col = col
             self.current_sort_reverse = False
 
-        # Sort the underlying data source (or filtered view)? 
-        # Better to sort the currently displayed items to respect search
-        
         # Helper to get value for sorting
         def get_value(item):
             val = item[col]
@@ -348,10 +302,10 @@ class ProductsApp(tk.Tk):
 
         # We sort self.all_products to maintain order even if search changes
         self.all_products.sort(key=get_value, reverse=self.current_sort_reverse)
-        
+
         # Re-apply filter to update view
         self.filter_products()
-        
+
         # Update heading to show sort direction (optional visual cue)
         for c in self.tree["columns"]:
             text = self.tree.heading(c, "text").replace(" ▲", "").replace(" ▼", "")
@@ -366,7 +320,7 @@ class ProductsApp(tk.Tk):
 
         column_id = self.tree.identify_column(event.x)
         column_index = int(column_id.replace("#", "")) - 1
-        
+
         # Determine key from index
         keys = ["codigo", "nombre", "precio", "inventario"]
         key = keys[column_index]
@@ -378,28 +332,27 @@ class ProductsApp(tk.Tk):
         # Get the actual item values
         current_values = self.tree.item(selected_iid, "values")
         # Identify the product in self.all_products using barcode (index 0)
-        # Note: If barcode is edited, we need to handle that carefully.
-        # But we first need to find the original object.
         original_barcode = current_values[0]
-        
+
         # Find the product dict in memory
         product_idx = -1
         for i, p in enumerate(self.all_products):
             if p['codigo'] == original_barcode:
                 product_idx = i
                 break
-        
-        if product_idx == -1: return # Should not happen
+
+        if product_idx == -1:
+            return
 
         x, y, width, height = self.tree.bbox(selected_iid, column_id)
         value = current_values[column_index]
 
-        entry = ttk.Entry(self.tree, justify="center")
+        entry = ctk.CTkEntry(self.tree, justify="center")
         entry.place(x=x, y=y, width=width, height=height)
         entry.insert(0, value)
         entry.focus()
 
-        def save_edit(event):
+        def save_edit(event=None):
             new_value = entry.get()
             if column_index == 0:  # Barcode normalization
                 new_value = new_value.strip().lstrip("0") or "0"
@@ -432,17 +385,12 @@ class ProductsApp(tk.Tk):
 
             # Update memory
             self.all_products[product_idx][key] = new_value
-            
-            # Update View
-            # We could just update the tree item, but to keep sort/filter consistent,
-            # it's safer to re-run filter/populate. However, that loses scroll position.
-            # For specific cell update, direct tree update is better UX.
-            
+
             # Update tree item directly
             new_values = list(current_values)
             new_values[column_index] = new_value
             self.tree.item(selected_iid, values=new_values)
-            
+
             entry.destroy()
 
         entry.bind("<Return>", save_edit)
@@ -478,15 +426,15 @@ class ProductsApp(tk.Tk):
             "codigo": barcode,
             "nombre": name,
             "precio": price,
-            "inventario": inventory
+            "inventario": inventory,
         }
-        
+
         self.all_products.append(new_product)
-        
+
         # Refresh view (will include new item if it matches filter)
         self.filter_products()
-        
-        # Scroll to bottom if not filtered or if sorted? 
+
+        # Scroll to bottom if not filtered or if sorted?
         # For now, just clear form
         self.clear_form()
         messagebox.showinfo("Éxito", "Producto agregado. Recuerde guardar cambios.")
