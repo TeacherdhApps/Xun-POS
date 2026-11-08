@@ -17,3 +17,6 @@ settings.json
 *.db-shm
 backups/
 *.bak
+
+# Artefactos de empaquetado
+dist/

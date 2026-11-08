@@ -1,0 +1,13 @@
+Package: xun-pos
+Version: 1.1.0
+Section: office
+Priority: optional
+Architecture: all
+Maintainer: Daniel Hernández Arroyo <teacherdhapps@users.noreply.github.com>
+Depends: python3, python3-tk, python3-tkcalendar
+Description: Xun-POS - Sistema de Punto de Venta
+ Una aplicacion de punto de venta rapida y ligera con interfaz grafica
+ en Python/Tkinter.
+ .
+ Los datos operativos se guardan en SQLite dentro del directorio de datos
+ del usuario (XDG_DATA_HOME/xun-pos).
