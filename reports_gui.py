@@ -9,6 +9,20 @@ import tkinter as tk
 import webbrowser
 from datetime import date, datetime, timedelta
 from tkinter import messagebox, ttk
+
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+
+def _sales_by_day(sales) -> dict:
+    """Aggregate sales totals per day (YYYY-MM-DD -> centavos)."""
+    totals = {}
+    for sale in sales:
+        fecha = datetime.fromisoformat(sale["fecha_hora"]).date().isoformat()
+        totals[fecha] = totals.get(fecha, 0) + int(sale["total_centavos"])
+    return totals
+
+
 try:
     from thermal_printer import ThermalPrinter
 except ImportError:
@@ -233,6 +247,7 @@ class ReportsApp(tk.Tk):
         cal_frame.columnconfigure(6, weight=1)  # Modify button
         cal_frame.columnconfigure(7, weight=1)  # Delete button
         cal_frame.columnconfigure(8, weight=1)  # Exit button
+        cal_frame.columnconfigure(9, weight=1)  # Grafico button
 
         # Row 0: Calendar widgets and buttons
         ttk.Label(cal_frame, text="Desde:", font=("Arial", 14, "bold")).grid(
@@ -278,6 +293,20 @@ class ReportsApp(tk.Tk):
             command=self.print_report,
             style="Print.TButton",
         ).grid(row=0, column=5, padx=5, sticky="ew")
+
+        ttk.Button(
+            cal_frame,
+            text="Gráfico - Ventas por día",
+            command=self._open_sales_chart,
+            style="Accent.TButton",
+        ).grid(row=0, column=9, padx=5, sticky="ew")
+
+        ttk.Button(
+            cal_frame,
+            text="Gráfico - Ventas por día",
+            command=self._open_sales_chart,
+            style="Accent.TButton",
+        ).grid(row=0, column=9, padx=5, sticky="ew")
 
         ttk.Button(
             cal_frame,
@@ -909,7 +938,41 @@ class ReportsApp(tk.Tk):
             except Exception as e:
                 messagebox.showerror("Error", f"Error al borrar: {e}")
 
+    def _open_sales_chart(self):
+        """Show sales per day for the selected range in a bar chart."""
+        start = self.start_cal.get_date()
+        end = self.end_cal.get_date()
+        sales = self.store.sales_between(start, end)
+        totals = _sales_by_day(sales)
 
+        window = tk.Toplevel(self)
+        window.title("Ventas por día")
+        window.geometry("640x400")
+        window.transient(self)
+        window.grab_set()
+
+        fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
+        if totals:
+            days = sorted(totals)
+            values = [totals[d] / 100 for d in days]
+            ax.bar(days, values)
+            ax.set_title(f"Ventas por día ({start} a {end})")
+            ax.set_ylabel("Ventas ($)")
+            ax.tick_params(axis="x", rotation=45)
+        else:
+            ax.text(
+                0.5,
+                0.5,
+                "Sin ventas en el rango",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+        fig.tight_layout()
+
+        canvas = FigureCanvasTkAgg(fig, master=window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def exit_app(self):
         """Exit the application."""
