@@ -444,7 +444,7 @@ class POS_GUI(tk.Tk):
         # Add columns for +/- buttons
         self.tree = ttk.Treeview(
             tree_frame,
-            columns=("barcode", "name", "minus", "qty", "plus", "price", "total"),
+            columns=("barcode", "name", "minus", "qty", "plus", "price", "descto", "total"),
             show="headings",
             height=8,
         )
@@ -454,6 +454,7 @@ class POS_GUI(tk.Tk):
         self.tree.tag_configure(self.tree_plus_tag, background="#C8E6C9", font=("Arial", 18, "bold"))
         self.tree.tag_configure(self.tree_qty_tag, background="#FFF9C4", font=("Arial", 16, "bold"))
         self.tree.tag_configure(self.tree_low_stock_tag, background="#FFCDD2")
+        self.tree.tag_configure(self.tree_disc_tag, background="#E3F2FD", font=("Arial", 16, "bold"))
         
         # Column headers
         self.tree.heading("barcode", text="Código")
@@ -462,6 +463,7 @@ class POS_GUI(tk.Tk):
         self.tree.heading("qty", text="Cant.")
         self.tree.heading("plus", text=" + ")
         self.tree.heading("price", text="Precio Unit")
+        self.tree.heading("descto", text="Desc %")
         self.tree.heading("total", text="Total")
         
         # Column widths and alignment
@@ -471,6 +473,7 @@ class POS_GUI(tk.Tk):
         self.tree.column("qty", anchor=tk.CENTER, width=60, minwidth=50, stretch=False)
         self.tree.column("plus", anchor=tk.CENTER, width=45, minwidth=40, stretch=False)
         self.tree.column("price", anchor=tk.E, width=95, minwidth=80)
+        self.tree.column("descto", anchor=tk.E, width=70, minwidth=60)
         self.tree.column("total", anchor=tk.E, width=110, minwidth=90)
 
         # Scrollbar
@@ -747,6 +750,7 @@ class POS_GUI(tk.Tk):
                     "nombre": product["nombre"],
                     "precio": product["precio"],
                     "qty": qty,
+                    "descuento": 0,
                 }
 
             self.last_added_barcode = barcode  # Update last added product
@@ -842,6 +846,42 @@ class POS_GUI(tk.Tk):
                 entry_edit.focus_set()
                 entry_edit.event_generate('<Button-1>')
 
+            # Handle discount column for manual editing (column #7)
+            elif column == "#7":
+                bbox = self.tree.bbox(item_id, column)
+                if not bbox:
+                    return
+
+                # Create Combobox for discount selection (0-100 in steps of 5)
+                entry_edit = ttk.Combobox(
+                    self.tree,
+                    values=[str(i) for i in range(0, 101, 5)],
+                    font=("Arial", 14),
+                    state="normal",
+                    style="Qty.TCombobox",
+                )
+                entry_edit.place(x=bbox[0], y=bbox[1], width=bbox[2], height=bbox[3])
+
+                current_discount = self.sale_items[barcode].get("descuento", 0)
+                entry_edit.set(str(current_discount))
+
+                def save_edit(event=None):
+                    try:
+                        new_discount = int(entry_edit.get())
+                        if 0 <= new_discount <= 100:
+                            self.sale_items[barcode]["descuento"] = new_discount
+                            self.update_sale_list()
+                            self.update_total()
+                    except ValueError:
+                        pass
+                    entry_edit.destroy()
+
+                entry_edit.bind("<Return>", save_edit)
+                entry_edit.bind("<<ComboboxSelected>>", save_edit)
+                entry_edit.bind("<FocusOut>", lambda e: entry_edit.destroy())
+                entry_edit.focus_set()
+                entry_edit.event_generate('<Button-1>')
+
     def increment_quantity(self, barcode):
         """Increment quantity by 1."""
         if barcode in self.sale_items:
@@ -901,7 +941,8 @@ class POS_GUI(tk.Tk):
 
         # Insert current items with +/- buttons
         for barcode, item in self.sale_items.items():
-            total_price = item["qty"] * item["precio"]
+            descuento = item.get("descuento", 0)
+            line_total = item["qty"] * item["precio"] * (1 - descuento / 100)
             
             # Determine if low stock
             is_low_stock = self.products.get(barcode, {}).get("inventario", 0) <= 5
@@ -910,6 +951,8 @@ class POS_GUI(tk.Tk):
             tags = [barcode]
             if is_low_stock:
                 tags.append(self.tree_low_stock_tag)
+            if descuento:
+                tags.append(self.tree_disc_tag)
             
             self.tree.insert(
                 "",
@@ -921,14 +964,18 @@ class POS_GUI(tk.Tk):
                     item["qty"],
                     " + ",  # Plus button
                     f"${item['precio']:.2f}",
-                    f"${total_price:.2f}",
+                    f"{descuento}%",
+                    f"${line_total:.2f}",
                 ),
                 tags=tags,
             )
 
     def update_total(self):
         """Update the total label and return total."""
-        total = sum(item["qty"] * item["precio"] for item in self.sale_items.values())
+        total = sum(
+            item["qty"] * item["precio"] * (1 - item.get("descuento", 0) / 100)
+            for item in self.sale_items.values()
+        )
         self.total_label.config(text=f"Total: ${total:.2f}")
         return total
 
@@ -1187,7 +1234,8 @@ class PaymentWindow(tk.Toplevel):
             items.append({
                 'name': item["nombre"],
                 'qty': item["qty"],
-                'price': item["precio"]
+                'precio': item["precio"],
+                'descuento': item.get("descuento", 0),
             })
             
         totals = {
@@ -1218,8 +1266,12 @@ class PaymentWindow(tk.Toplevel):
                 .replace(">", "&gt;")
                 .replace('"', "&quot;")
             )
-            subtotal = item["precio"] * item["qty"]
-            items_html += f'<tr><td>{name} (x{item["qty"]})</td><td>${subtotal:.2f}</td></tr>'
+            descuento = item.get("descuento", 0)
+            subtotal = item["precio"] * item["qty"] * (1 - descuento / 100)
+            name_part = f"{name} (x{item['qty']})"
+            if descuento:
+                name_part = f"{name_part} -{descuento}%"
+            items_html += f'<tr><td>{name_part}</td><td>${subtotal:.2f}</td></tr>'
 
         totals_html = f"""
         <div class="total">Total: ${self.total:.2f}</div>

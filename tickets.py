@@ -53,13 +53,16 @@ def generate_ticket_pdf(
 
     ticket.setFont("Helvetica", 9)
     for item in items:
-        line_total = item.get("total") or (item.get("precio") or 0) * (
-            item.get("cantidad") or 0
-        )
+        precio = item.get("precio") or 0
+        cantidad = item.get("cantidad") or 0
+        descuento = item.get("descuento", 0)
+        line_total = item.get("total") or precio * cantidad * (1 - descuento / 100)
         line = (
-            f"{item.get('nombre', '')} x{item.get('cantidad', 1)}  "
+            f"{item.get('nombre', '')} x{cantidad}  "
             f"${_money(line_total):.2f}"
         )
+        if descuento:
+            line = f"{line} (-{descuento}%)"
         ticket.drawString(margin, y, line[:100])
         y -= 12
         if y < margin + 30:
