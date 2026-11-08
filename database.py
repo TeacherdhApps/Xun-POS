@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS products (
     codigo          TEXT NOT NULL UNIQUE,
     nombre          TEXT NOT NULL,
     precio_centavos INTEGER NOT NULL CHECK (precio_centavos >= 0),
-    inventario      INTEGER NOT NULL DEFAULT 0,
+    inventario      REAL NOT NULL DEFAULT 0,
     activo          INTEGER NOT NULL DEFAULT 1
 );
 

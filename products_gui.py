@@ -6,10 +6,8 @@ A POS application for Unix-based systems
 """
 
 import config
-import csv
-import fcntl
-import os
 import platform
+import store
 import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -33,8 +31,7 @@ class ProductsApp(tk.Tk):
         self.geometry("1400x720")
         self.is_fullscreen = False
         
-        # Base directory for absolute paths
-        self.base_dir = str(config.ensure_data_dir())
+        self.store = store.Store()
         if config.get_mode() == "demo":
             self.title(self.title() + " [DEMO]")
 
@@ -290,38 +287,12 @@ class ProductsApp(tk.Tk):
         ).grid(row=0, column=3, padx=5, sticky="ew")
 
     def load_data_into_memory(self):
-        """Read CSV and store in self.all_products."""
-        filepath = os.path.join(self.base_dir, "productos.csv")
-        self.all_products = []
-        
-        if not os.path.exists(filepath):
-            # Create if not exists
-            try:
-                with open(filepath, "w", newline="", encoding="utf-8") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(["codigo", "nombre", "precio", "inventario"])
-            except Exception as e:
-                messagebox.showerror("Error", f"No se pudo crear el archivo: {e}")
-            return
-
+        """Load products from the database into self.all_products."""
         try:
-            with open(filepath, mode="r", encoding="utf-8") as infile:
-                reader = csv.reader(infile)
-                header = next(reader, None)
-                if header != ["codigo", "nombre", "precio", "inventario"]:
-                    messagebox.showerror("Error de Formato", "Archivo CSV tiene encabezado incorrecto.")
-                    return
-
-                for row in reader:
-                    if len(row) >= 4:
-                        self.all_products.append({
-                            "codigo": row[0].strip().lstrip("0") or "0",
-                            "nombre": row[1],
-                            "precio": row[2],
-                            "inventario": row[3]
-                        })
+            self.all_products = self.store.list_products_for_ui()
         except Exception as e:
-            messagebox.showerror("Error de Carga", f"No se pudo leer archivo: {e}")
+            self.all_products = []
+            messagebox.showerror("Error de Carga", f"No se pudo leer la base de datos: {e}")
 
     def populate_treeview(self, products):
         """Populate the treeview with the given list of products."""
@@ -453,9 +424,9 @@ class ProductsApp(tk.Tk):
                     return
             elif column_index == 3:  # Inventory
                 try:
-                    int(new_value)
+                    float(new_value)
                 except ValueError:
-                    messagebox.showerror("Error", "El inventario debe ser un entero.", parent=self)
+                    messagebox.showerror("Error", "El inventario debe ser un número.", parent=self)
                     entry.destroy()
                     return
 
@@ -491,7 +462,7 @@ class ProductsApp(tk.Tk):
         try:
             float(price)
             if inventory:
-                int(inventory)
+                float(inventory)
             else:
                 inventory = "0"
         except ValueError:
@@ -542,37 +513,15 @@ class ProductsApp(tk.Tk):
     def save_to_csv(self):
         if not messagebox.askyesno(
             "Confirmar Guardar",
-            "¿Desea guardar todos los cambios en productos.csv?\nEsto sobrescribirá el archivo.",
+            "¿Desea guardar todos los cambios de productos en la base de datos?",
         ):
             return
 
         try:
-            filepath = os.path.join(self.base_dir, "productos.csv")
-            # Prepare rows
-            rows = []
-            for p in self.all_products:
-                rows.append([p['codigo'], p['nombre'], p['precio'], p['inventario']])
-
-            # Write with lock
-            # Ensure file exists first
-            if not os.path.exists(filepath):
-                 with open(filepath, "w", newline="", encoding="utf-8") as f:
-                     writer = csv.writer(f)
-                     writer.writerow(["codigo", "nombre", "precio", "inventario"])
-            
-            with open(filepath, "r+", newline="", encoding="utf-8") as f:
-                fcntl.flock(f, fcntl.LOCK_EX)
-                try:
-                    f.seek(0)
-                    f.truncate()
-                    writer = csv.writer(f)
-                    writer.writerow(["codigo", "nombre", "precio", "inventario"])
-                    writer.writerows(rows)
-                finally:
-                    fcntl.flock(f, fcntl.LOCK_UN)
-            
-            messagebox.showinfo("Éxito", "Cambios guardados exitosamente en productos.csv.")
-            
+            self.store.replace_products(self.all_products)
+            self.load_data_into_memory()
+            self.filter_products()
+            messagebox.showinfo("Éxito", "Cambios guardados correctamente.")
         except Exception as e:
             messagebox.showerror("Error Guardando", f"Ocurrió un error: {e}")
 
@@ -585,6 +534,7 @@ class ProductsApp(tk.Tk):
 
     def exit_app(self):
         """Exit the application."""
+        self.store.close()
         self.destroy()
 
 

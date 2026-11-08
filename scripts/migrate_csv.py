@@ -136,9 +136,11 @@ def read_products(source: Path, errors: list[str]) -> list[dict]:
             errors.append(f"productos.csv:{number}: {exc}")
             continue
         try:
-            stock = int(str(row.get("inventario") or "0").strip())
+            stock = float(str(row.get("inventario") or "0").strip())
+            if stock != stock or stock in (float("inf"), float("-inf")):
+                raise ValueError
         except ValueError:
-            stock = 0
+            stock = 0.0
             errors.append(f"productos.csv:{number}: inventario inválido, se usa 0")
         seen.add(code)
         products.append(

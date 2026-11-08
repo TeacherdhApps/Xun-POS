@@ -9,6 +9,7 @@ import sys
 
 import config
 import security
+import store
 
 
 # ANSI Color codes for terminal
@@ -224,6 +225,15 @@ class LoginSystem:
                     f"\n{Colors.YELLOW}Datos migrados a "
                     f"{config.data_dir(self.mode)}: {', '.join(copied)}{Colors.RESET}"
                 )
+
+        try:
+            store.Store(mode=self.mode).close()
+        except Exception as exc:
+            print(
+                f"\n{Colors.RED}No se pudieron preparar los datos: "
+                f"{exc}{Colors.RESET}"
+            )
+            raise
 
         self.user_manager = UserManager(config.credentials_path(self.mode))
 

@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import config
-import json
-import os
 import platform
+import store
 import sys
-import zipfile
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -27,11 +25,9 @@ class SettingsApp(tk.Tk):
         self.geometry("800x600")
         self.is_fullscreen = False  # Track fullscreen state
         
-        # Base directory for absolute paths
-        self.base_dir = str(config.ensure_data_dir())
+        self.store = store.Store()
         if config.get_mode() == "demo":
             self.title(self.title() + " [DEMO]")
-        self.settings_file = os.path.join(self.base_dir, "settings.json")
 
         self.create_styles()
         self.create_widgets()
@@ -225,36 +221,25 @@ class SettingsApp(tk.Tk):
             self.entries["logo_path"].config(text=file_path)
 
     def export_data(self):
-        """Export all data files to a zip file."""
-        files_to_export = [
-            "productos.csv",
-            "ventas.csv",
-            "flujo_caja.csv",
-            "settings.json"
-        ]
-        
+        """Export the database to a zip file."""
         save_path = filedialog.asksaveasfilename(
             defaultextension=".zip",
             filetypes=[("Zip files", "*.zip")],
-            title="Exportar Datos como..."
+            title="Exportar Datos como...",
+            initialfile="xun-pos-backup.zip",
         )
-        
+
         if not save_path:
             return
 
         try:
-            with zipfile.ZipFile(save_path, 'w') as zipf:
-                for file in files_to_export:
-                    file_path = os.path.join(self.base_dir, file)
-                    if os.path.exists(file_path):
-                        zipf.write(file_path, arcname=file)
-            
+            self.store.export_backup(save_path)
             messagebox.showinfo("Éxito", f"Datos exportados correctamente en:\n{save_path}")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudieron exportar los datos: {e}")
 
     def import_data(self):
-        """Import data files from a zip file."""
+        """Restore the database from a backup zip."""
         import_path = filedialog.askopenfilename(
             filetypes=[("Zip files", "*.zip")],
             title="Seleccionar archivo de datos para importar"
@@ -272,20 +257,23 @@ class SettingsApp(tk.Tk):
             return
 
         try:
-            with zipfile.ZipFile(import_path, 'r') as zipf:
-                zipf.extractall(self.base_dir)
-            
+            result = self.store.restore_backup(import_path)
             self.load_settings() # Refresh UI with new settings
-            messagebox.showinfo("Éxito", "Datos importados correctamente. Por favor, reinicie la aplicación principal si está abierta.")
+            extra = (
+                f"\nCopia de la base anterior: {result['previous']}"
+                if result["previous"]
+                else ""
+            )
+            messagebox.showinfo(
+                "Éxito",
+                "Datos importados correctamente. Reinicie la aplicación "
+                f"principal si está abierta.{extra}",
+            )
         except Exception as e:
             messagebox.showerror("Error", f"No se pudieron importar los datos: {e}")
 
     def load_settings(self):
-        if not os.path.exists(self.settings_file):
-            return
-
-        with open(self.settings_file, "r", encoding="utf-8") as f:
-            settings = json.load(f)
+        settings = self.store.get_settings()
 
         for key, widget in self.entries.items():
             if key in settings:
@@ -304,8 +292,7 @@ class SettingsApp(tk.Tk):
                 settings[key] = widget.cget("text")
 
         try:
-            with open(self.settings_file, "w", encoding="utf-8") as f:
-                json.dump(settings, f, indent=4)
+            self.store.set_settings(settings)
             messagebox.showinfo("Éxito", "Configuración guardada exitosamente.")
         except Exception as e:
             messagebox.showerror(
@@ -314,6 +301,7 @@ class SettingsApp(tk.Tk):
 
     def exit_app(self):
         """Exit the application."""
+        self.store.close()
         self.destroy()
 
 

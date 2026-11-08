@@ -74,20 +74,19 @@ Xun-POS/
 ├── products_gui.py    # Gestión de productos
 ├── reports_gui.py     # Reportes
 ├── settings_gui.py    # Configuración
-├── productos.csv      # Base de datos de productos (local, no versionado)
-├── ventas.csv         # Registro de ventas (local, no versionado)
-├── flujo_caja.csv     # Registros de flujo de caja (local, no versionado)
-├── .credentials       # Usuarios y contraseñas (local, no versionado)
-├── settings.json      # Configuración del establecimiento (local, no versionado)
-├── productos.ejemplo.csv  # Datos de ejemplo para el primer arranque
+├── store.py           # Acceso a datos SQLite (repositorio)
+├── productos.ejemplo.csv  # Datos de ejemplo para el primer arranque/demo
 ├── settings.ejemplo.json  # Configuración de ejemplo
-├── database.py        # Esquema y conexión SQLite (migración en curso)
+├── database.py        # Esquema y conexión SQLite
+├── scripts/migrate_csv.py  # Migración CSV -> SQLite
 └── install.sh         # Script de instalación
 ```
 
-> Los archivos con datos reales (`.credentials`, `productos.csv`, `ventas.csv`,
-> `flujo_caja.csv`, `settings.json` y `*.db`) se crean en tu equipo y están
-> excluidos por `.gitignore`. Nunca los subas al repositorio.
+> La base de datos real (`xun.db`) se crea en el directorio de datos del modo
+> (`~/.local/share/xun-pos/` o `~/.local/share/xun-pos/demo/`) y está excluida
+> por `.gitignore`. Los archivos legados (`.credentials`, `productos.csv`,
+> `ventas.csv`, `flujo_caja.csv`, `settings.json`) solo se usan como origen de
+> la migración automática. Nunca los subas al repositorio.
 
 ## Gestión de Usuarios (Solo Administrador)
 
@@ -131,14 +130,20 @@ Xun-POS/
 
 ## Archivos de Datos
 
-### productos.csv
-Formato: `codigo_barras,nombre,precio,inventario`
+Los datos viven en SQLite (esquema v2):
 
-### ventas.csv
-Formato: `marca_tiempo,codigo_barras,nombre,cantidad,precio_unitario,precio_total`
+- `~/.local/share/xun-pos/xun.db` (modo producción/kiosco)
+- `~/.local/share/xun-pos/demo/xun.db` (modo demo)
 
-### flujo_caja.csv
-Formato: `marca_tiempo,tipo,monto,concepto`
+### Tablas principales
+- `users`, `products`, `sales`, `sale_items`, `cash_movements`, `settings`, `audit_log`
+
+### Repositorio (`store.py`)
+- `list_products()` / `replace_products()` / `get_product()`
+- `record_sale()` / `sales_between()` / `sales_total_between()`
+- `add_cash_movement()` / `update_cash_movement()` / `delete_cash_movement()` / `cash_movements_between()`
+- `get_settings()` / `set_settings()`
+- `export_backup()` / `restore_backup()`
 
 ## Solución de Problemas
 
@@ -170,15 +175,18 @@ sudo dnf install python3-tkinter
 
 ## Notas
 
-- Los archivos CSV utilizan formato UTF-8
+- La base de datos SQLite utiliza UTF-8 para las columnas de texto
 - Las fechas están en formato AAAA-MM-DD (principalmente) o específico de la región
 - La interfaz está completamente en español
 - Los movimientos de flujo de caja se registran automáticamente con cada venta
 
-## Migración a SQLite (en curso)
+## Migración a SQLite
 
 `database.py` crea el esquema SQLite v2 en `~/.local/share/xun-pos/xun.db`.
-Para migrar los CSV existentes, con backup y verificación de totales:
+La primera apertura que encuentre archivos CSV/`.credentials` en la carpeta de
+datos del modo migra automáticamente (con backup y verificación).
+
+Manualmente:
 
 ```bash
 python3 scripts/migrate_csv.py --source ~/.local/share/xun-pos --dry-run
@@ -197,9 +205,12 @@ python3 -m venv .venv
 
 Para conservar los datos al actualizar:
 1. Realice una copia de seguridad de `~/.local/share/xun-pos/`
-   (incluye `.credentials`, los CSV y las bases de datos)
-2. Actualice los archivos .py
-3. Restaure los datos guardados
+   (incluye `xun.db`, los archivos legados y las bases de datos).
+2. Actualice los archivos `.py`.
+3. Restaure los datos guardados.
+
+Las ventanas de configuración pueden exportar/importar la base de datos
+automáticamente (`store.export_backup` / `store.restore_backup`).
 
 ## Soporte
 

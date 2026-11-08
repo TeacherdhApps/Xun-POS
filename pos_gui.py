@@ -1,17 +1,13 @@
-import base64
 import config
-import csv
-import fcntl
-import json
 import os
 import platform
+import store
 import subprocess
 import sys
 import tempfile
 import tkinter as tk
 import webbrowser
 from datetime import datetime
-from pathlib import Path
 from tkinter import messagebox, ttk
 
 try:
@@ -40,11 +36,12 @@ class POS_GUI(tk.Tk):
         self.user_role = user_role  # Store user role for access control
         self.is_fullscreen = False  # Track fullscreen state
         
-        # Base directory for absolute paths
-        self.base_dir = str(config.ensure_data_dir())
+        # Directory where the application scripts live
+        self.app_dir = str(config.app_dir())
         if config.get_mode() == "demo":
             self.title(self.title() + " [DEMO]")
 
+        self.store = store.Store()
         self.settings = self.load_settings()
         self.products = self.load_products()
         self.active_tickets = {1: {}, 2: {}}
@@ -56,8 +53,6 @@ class POS_GUI(tk.Tk):
         self.search_timer = None  # Timer for debounce search
 
         self.create_styles()
-        self.init_sales_log()
-        self.init_cash_flow_log()
         self.create_widgets()
         self.update_time()  # Start the clock
         self.after(100, lambda: self.product_combobox.focus_set())  # Focus on product combobox
@@ -66,7 +61,7 @@ class POS_GUI(tk.Tk):
         self.bind("<F11>", self.toggle_fullscreen)
 
     def load_settings(self):
-        """Load settings from JSON file with default fallback."""
+        """Load settings from the database with default fallback."""
         default_settings = {
             "business_name": "Mi Tienda",
             "address": "Calle Principal 123",
@@ -74,14 +69,8 @@ class POS_GUI(tk.Tk):
             "cashier_name": "Cajero",
             "logo_path": ""
         }
-        try:
-            settings_path = os.path.join(self.base_dir, "settings.json")
-            with open(settings_path, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
-                default_settings.update(loaded)  # Merge with defaults
-                return default_settings
-        except (FileNotFoundError, json.JSONDecodeError):
-            return default_settings
+        default_settings.update(self.store.get_settings())
+        return default_settings
 
     def update_time(self):
         """Update date and time labels every second."""
@@ -102,181 +91,9 @@ class POS_GUI(tk.Tk):
 
         self.after(1000, self.update_time)
 
-    def init_sales_log(self):
-        """Initialize ventas.csv with headers if it doesn't exist."""
-        filepath = os.path.join(self.base_dir, "ventas.csv")
-        if not os.path.exists(filepath):
-            with open(filepath, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(
-                    [
-                        "fecha_hora",
-                        "codigo",
-                        "nombre",
-                        "cantidad",
-                        "precio_unitario",
-                        "total",
-                    ]
-                )
-
-    def log_sale(self, items=None):
-        """Log the sale to ventas.csv."""
-        target_items = items if items is not None else self.sale_items
-        if not target_items:
-            return
-
-        timestamp = datetime.now().isoformat()
-        filepath = os.path.join(self.base_dir, "ventas.csv")
-        with open(filepath, "a", newline="", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            try:
-                writer = csv.writer(f)
-                for barcode, item in target_items.items():
-                    writer.writerow(
-                        [
-                            timestamp,
-                            barcode,
-                            item["nombre"],
-                            item["qty"],
-                            item["precio"],
-                            item["qty"] * item["precio"],
-                        ]
-                    )
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
-
-    def update_inventory(self):
-        """Update product inventory in productos.csv after a sale."""
-        filepath = Path(os.path.join(self.base_dir, "productos.csv"))
-        if not filepath.exists():
-            messagebox.showerror("Error", f"Archivo '{filepath}' no encontrado.")
-            return
-
-        try:
-            with open(filepath, mode="r+", newline="", encoding="utf-8") as file:
-                # Acquire an exclusive lock
-                fcntl.flock(file, fcntl.LOCK_EX)
-                
-                try:
-                    reader = csv.reader(file)
-                    lines = list(reader)
-                    
-                    if not lines:
-                        messagebox.showerror("Error", "El archivo de productos está vacío.")
-                        return
-
-                    header = lines[0]
-                    product_lines = lines[1:]
-
-                    # Create a dictionary for quick lookup by barcode
-                    products_dict = {row[0]: row for row in product_lines}
-                    
-                    # Track if any changes were made
-                    changes_made = False
-
-                    # Update quantities
-                    for barcode, item in self.sale_items.items():
-                        if barcode in products_dict:
-                            try:
-                                # Assuming 'inventario' is the 4th column (index 3)
-                                current_stock = int(products_dict[barcode][3])
-                                new_stock = current_stock - item["qty"]
-                                products_dict[barcode][3] = str(new_stock)
-                                changes_made = True
-                            except (ValueError, IndexError):
-                                print(f"Advertencia: No se pudo actualizar el inventario para el código {barcode}")
-                    
-                    if changes_made:
-                        # Reconstruct the lines in the original order
-                        updated_lines = [header] + [products_dict.get(row[0], row) for row in product_lines]
-                        
-                        # Rewind and write
-                        file.seek(0)
-                        writer = csv.writer(file)
-                        writer.writerows(updated_lines)
-                        file.truncate()
-                        
-                finally:
-                    # Always unlock
-                    fcntl.flock(file, fcntl.LOCK_UN)
-                    
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo actualizar el inventario: {e}")
-
-    def _ensure_products_file(self, filepath):
-        """Create productos.csv from the example file, or with headers only."""
-        example = filepath.with_name("productos.ejemplo.csv")
-        try:
-            filepath.parent.mkdir(parents=True, exist_ok=True)
-            if example.exists():
-                with open(example, "r", encoding="utf-8") as src, open(
-                    filepath, "w", encoding="utf-8", newline=""
-                ) as dst:
-                    dst.write(src.read())
-            else:
-                with open(filepath, "w", newline="", encoding="utf-8") as dst:
-                    csv.writer(dst).writerow(
-                        ["codigo", "nombre", "precio", "inventario"]
-                    )
-            messagebox.showinfo(
-                "Primer arranque",
-                f"Se creó '{filepath.name}' con datos de ejemplo.",
-            )
-        except OSError as e:
-            messagebox.showerror("Error", f"No se pudo crear '{filepath}': {e}")
-
     def load_products(self):
-        """Load products from CSV file, seeding it on first run."""
-        products = {}
-        filepath = Path(os.path.join(self.base_dir, "productos.csv"))
-        if not filepath.exists():
-            self._ensure_products_file(filepath)
-        if not filepath.exists():
-            self.destroy()
-            return products
-
-        try:
-            with open(filepath, mode="r", encoding="utf-8") as infile:
-                reader = csv.reader(infile)
-                header = next(reader, None)  # Skip header
-                if not header:
-                    raise ValueError("Archivo de productos vacío o faltan encabezados.")
-                for row_num, row in enumerate(reader, start=2):
-                    if len(row) >= 4:  # At least codigo, nombre, precio, inventario
-                        barcode = row[0].strip().lstrip("0") or "0"
-                        name, price_str, inventario_str = row[1:4]
-                        try:
-                            price = float(price_str)
-                            inventario = int(inventario_str)
-                            products[barcode] = {
-                                "nombre": name.strip(),
-                                "precio": price,
-                                "inventario": inventario,
-                            }
-                        except ValueError:
-                            print(
-                                f"Advertencia: Precio o inventario inválido en fila {row_num}"
-                            )
-                    elif len(row) >= 3:  # Fallback for rows without inventario
-                        barcode = row[0].strip().lstrip("0") or "0"
-                        name, price_str = row[1:3]
-                        try:
-                            price = float(price_str)
-                            products[barcode] = {
-                                "nombre": name.strip(),
-                                "precio": price,
-                                "inventario": 0,  # Default inventario to 0
-                            }
-                        except ValueError:
-                            print(f"Advertencia: Precio inválido en fila {row_num}")
-                    else:
-                        print(f"Advertencia: Fila incompleta {row_num}: {row}")
-        except Exception as e:
-            messagebox.showerror(
-                "Error de Datos", f"Error leyendo datos de productos: {e}"
-            )
-            self.destroy()
-        return products
+        """Load active products from the database."""
+        return self.store.list_products()
 
     def create_styles(self):
         """Configure ttk styles."""
@@ -713,19 +530,19 @@ class POS_GUI(tk.Tk):
 
     def open_settings_window(self):
         """Open settings GUI in a new process."""
-        script_path = os.path.join(self.base_dir, "settings_gui.py")
+        script_path = os.path.join(self.app_dir, "settings_gui.py")
         if os.path.exists(script_path):
             subprocess.Popen([sys.executable, script_path])
 
     def open_products_window(self):
         """Open products GUI in a new process."""
-        script_path = os.path.join(self.base_dir, "products_gui.py")
+        script_path = os.path.join(self.app_dir, "products_gui.py")
         if os.path.exists(script_path):
             subprocess.Popen([sys.executable, script_path])
 
     def open_reports_window(self):
         """Open reports GUI in a new process."""
-        script_path = os.path.join(self.base_dir, "reports_gui.py")
+        script_path = os.path.join(self.app_dir, "reports_gui.py")
         if os.path.exists(script_path):
             subprocess.Popen([sys.executable, script_path])
 
@@ -742,24 +559,11 @@ class POS_GUI(tk.Tk):
         EntryExitWindow(self, "Salida Efectivo", "exits")
 
     def log_cash_flow(self, transaction_type, amount, concept):
-        """Log cash flow transaction to CSV."""
-        timestamp = datetime.now().isoformat()
-        filepath = os.path.join(self.base_dir, "flujo_caja.csv")
-        with open(filepath, "a", newline="", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            try:
-                writer = csv.writer(f)
-                writer.writerow([timestamp, transaction_type, amount, concept])
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
-
-    def init_cash_flow_log(self):
-        """Initialize flujo_caja.csv with headers if it doesn't exist."""
-        filepath = os.path.join(self.base_dir, "flujo_caja.csv")
-        if not os.path.exists(filepath):
-            with open(filepath, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(["fecha_hora", "tipo", "monto", "concepto"])
+        """Log an entry or exit movement in the database."""
+        kind = transaction_type.strip().lower()
+        if kind not in ("entrada", "salida"):
+            raise ValueError(f"tipo de movimiento inválido: {transaction_type}")
+        return self.store.add_cash_movement(kind, amount, concept)
 
     def show_suggestions(self, event=None):
         """Schedule product suggestions update (debounce)."""
@@ -1115,9 +919,20 @@ class POS_GUI(tk.Tk):
             self.product_combobox.focus()
 
     def on_closing(self):
-        """Handle window closing."""
-        for items in self.active_tickets.values():
-            self.log_sale(items)
+        """Persist any pending tickets before closing."""
+        for ticket_id, items in self.active_tickets.items():
+            if not items:
+                continue
+            try:
+                self.store.record_sale(
+                    items, concepto=f"Venta ticket {ticket_id} (cierre)"
+                )
+            except Exception as exc:
+                print(
+                    f"No se pudo guardar el ticket {ticket_id}: {exc}",
+                    file=sys.stderr,
+                )
+        self.store.close()
         self.destroy()
 
 
@@ -1416,9 +1231,16 @@ class PaymentWindow(tk.Toplevel):
 
     def finalize_sale(self):
         """Finalize the sale, clear ticket, and close window."""
-        self.parent.log_sale()
-        self.parent.update_inventory()
-        self.parent.log_cash_flow("Venta", self.total, f"Venta Recibo #{self.parent.current_ticket_id}")
+        try:
+            self.parent.store.record_sale(
+                self.parent.sale_items,
+                concepto=f"Venta Recibo #{self.parent.current_ticket_id}",
+            )
+        except Exception as exc:
+            messagebox.showerror(
+                "Error", f"No se pudo guardar la venta: {exc}", parent=self
+            )
+            return
         self.parent.clear_sale()
         self.destroy()
 
@@ -1585,9 +1407,15 @@ class EntryExitWindow(tk.Toplevel):
             t_type = "Entrada"
         else:
             t_type = "Salida"
-            
-        self.parent.log_cash_flow(t_type, amount, concept)
-        
+
+        try:
+            self.parent.log_cash_flow(t_type, amount, concept)
+        except Exception as exc:
+            messagebox.showerror(
+                "Error", f"No se pudo registrar: {exc}", parent=self
+            )
+            return
+
         # Close window FIRST, then show message (or just close for faster workflow)
         self.destroy()
         messagebox.showinfo("Éxito", "Transacción registrada.")

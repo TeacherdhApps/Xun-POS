@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-import base64
 import config
-import csv
-import fcntl
-import json
 import os
 import platform
+import store
 import sys
 import tempfile
 import tkinter as tk
 import webbrowser
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from tkinter import messagebox, ttk
 try:
     from thermal_printer import ThermalPrinter
@@ -49,15 +45,13 @@ class ReportsApp(tk.Tk):
         self.selected_report_date = date.today()
         self.is_fullscreen = False  # Track fullscreen state
         
-        # Base directory for absolute paths
-        self.base_dir = str(config.ensure_data_dir())
+        self.store = store.Store()
         if config.get_mode() == "demo":
             self.title(self.title() + " [DEMO]")
 
         self.settings = self.load_settings()
         self._initialized = False
         self.create_styles()
-        self.init_sales_log()
         self.create_widgets()
         self._initialized = True
         self.load_report_for_date()
@@ -66,38 +60,15 @@ class ReportsApp(tk.Tk):
         self.bind("<F11>", self.toggle_fullscreen)
 
     def load_settings(self):
-        """Load settings from JSON file with default fallback."""
+        """Load settings from the database with default fallback."""
         default_settings = {
             "business_name": "Mi Negocio",
             "address": "Calle Principal 123",
             "phone": "555-0123",
             "cashier_name": "Cajero",
         }
-        try:
-            settings_path = os.path.join(self.base_dir, "settings.json")
-            with open(settings_path, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
-                default_settings.update(loaded)  # Merge with defaults
-                return default_settings
-        except (FileNotFoundError, json.JSONDecodeError):
-            return default_settings
-
-    def init_sales_log(self):
-        # Ensure ventas.csv exists with headers if not present
-        filepath = os.path.join(self.base_dir, "ventas.csv")
-        if not os.path.exists(filepath):
-            with open(filepath, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(
-                    [
-                        "fecha_hora",
-                        "codigo",
-                        "nombre",
-                        "cantidad",
-                        "precio_unitario",
-                        "total",
-                    ]
-                )
+        default_settings.update(self.store.get_settings())
+        return default_settings
 
     def create_styles(self):
         """Configure ttk styles."""
@@ -474,73 +445,46 @@ class ReportsApp(tk.Tk):
         entries_total = 0.0
         exits_total = 0.0
 
-        try:
-            sales_path = os.path.join(self.base_dir, "ventas.csv")
-            with open(sales_path, "r", encoding="utf-8") as f:
-                fcntl.flock(f, fcntl.LOCK_SH)
-                try:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        sale_date = datetime.fromisoformat(row["fecha_hora"]).date()
-                        if start_date <= sale_date <= end_date:
-                            sale_time = datetime.fromisoformat(row["fecha_hora"]).strftime(
-                                "%Y-%m-%d %H:%M:%S"
-                            )
-                            # Using Spanish CSV headers: total
-                            total_price = float(row["total"])
-                            self.report_tree.insert(
-                                "",
-                                tk.END,
-                                values=(
-                                    sale_time,
-                                    row["nombre"],
-                                    row["cantidad"],
-                                    f"${total_price:.2f}",
-                                ),
-                            )
-                            daily_total += total_price
-                finally:
-                    fcntl.flock(f, fcntl.LOCK_UN)
-        except FileNotFoundError:
-            pass  # File will be created on first sale
+        for sale in self.store.sales_between(start_date, end_date):
+            sale_time = datetime.fromisoformat(sale["fecha_hora"]).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            total_price = sale["total_centavos"] / 100
+            self.report_tree.insert(
+                "",
+                tk.END,
+                values=(
+                    sale_time,
+                    sale["nombre"],
+                    store.format_quantity(sale["cantidad"]),
+                    f"${total_price:.2f}",
+                ),
+            )
+            daily_total += total_price
 
-        try:
-            cash_flow_path = os.path.join(self.base_dir, "flujo_caja.csv")
-            with open(cash_flow_path, "r", encoding="utf-8") as f:
-                fcntl.flock(f, fcntl.LOCK_SH)
-                try:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        transaction_date = datetime.fromisoformat(row["fecha_hora"]).date()
-                        if start_date <= transaction_date <= end_date:
-                            # Filter out sales from cash flow view, show only Entrada/Salida
-                            if row["tipo"] not in ["Entrada", "Salida"]:
-                                continue
-
-                            transaction_time = datetime.fromisoformat(
-                                row["fecha_hora"]
-                            ).strftime("%Y-%m-%d %H:%M:%S")
-                            # Using Spanish CSV headers: tipo, monto, concepto
-                            amount = float(row["monto"])
-                            self.cash_flow_tree.insert(
-                                "",
-                                tk.END,
-                                values=(
-                                    transaction_time,
-                                    row["tipo"],
-                                    f"${amount:.2f}",
-                                    row["concepto"],
-                                ),
-                                tags=(row["fecha_hora"],)
-                            )
-                            if row["tipo"] == "Entrada":
-                                entries_total += amount
-                            elif row["tipo"] == "Salida":
-                                exits_total += amount
-                finally:
-                    fcntl.flock(f, fcntl.LOCK_UN)
-        except FileNotFoundError:
-            pass
+        for movement in self.store.cash_movements_between(
+            start_date, end_date
+        ):
+            transaction_time = datetime.fromisoformat(
+                movement["fecha_hora"]
+            ).strftime("%Y-%m-%d %H:%M:%S")
+            amount = movement["monto_centavos"] / 100
+            kind = movement["tipo"].capitalize()
+            self.cash_flow_tree.insert(
+                "",
+                tk.END,
+                values=(
+                    transaction_time,
+                    kind,
+                    f"${amount:.2f}",
+                    movement["concepto"],
+                ),
+                tags=(str(movement["id"]),),
+            )
+            if movement["tipo"] == "entrada":
+                entries_total += amount
+            elif movement["tipo"] == "salida":
+                exits_total += amount
 
         self.report_total_label.config(text=f"${daily_total:.2f}")
         self.entradas_total_label.config(text=f"${entries_total:.2f}")
@@ -816,8 +760,8 @@ class ReportsApp(tk.Tk):
         item = self.cash_flow_tree.item(selected[0])
         values = item["values"]
         # values: [time, type, amount, concept]
-        # Use tags to get original ISO timestamp
-        original_iso_time = item["tags"][0] if item["tags"] else None
+        # Use the tag to get the database row id
+        movement_id = int(item["tags"][0]) if item["tags"] else None
         
         # Create edit dialog
         edit_window = tk.Toplevel(self)
@@ -867,46 +811,20 @@ class ReportsApp(tk.Tk):
                 if not new_concept:
                     messagebox.showerror("Error", "El concepto no puede estar vacío", parent=edit_window)
                     return
+                if movement_id is None:
+                    messagebox.showerror(
+                        "Error",
+                        "No se encontró el registro original para actualizar",
+                        parent=edit_window,
+                    )
+                    return
 
-                # Update CSV
-                rows = []
-                updated = False
-                file_path = os.path.join(self.base_dir, "flujo_caja.csv")
-
-                with open(file_path, "r", encoding="utf-8") as f:
-                    reader = csv.DictReader(f)
-                    fieldnames = reader.fieldnames
-                    for row in reader:
-                        # Match by original ISO timestamp if available
-                        match = False
-                        if original_iso_time:
-                            if row["fecha_hora"] == original_iso_time:
-                                match = True
-                        else:
-                            row_display_time = datetime.fromisoformat(row["fecha_hora"]).strftime("%Y-%m-%d %H:%M:%S")
-                            if row_display_time == values[0] and row["tipo"] == values[1]:
-                                match = True
-                        
-                        if match and not updated:
-                             # Update row
-                             row["tipo"] = new_type
-                             row["monto"] = str(new_amount)
-                             row["concepto"] = new_concept
-                             updated = True
-                        
-                        rows.append(row)
-
-                if updated:
-                    with open(file_path, "w", newline="", encoding="utf-8") as f:
-                        writer = csv.DictWriter(f, fieldnames=fieldnames)
-                        writer.writeheader()
-                        writer.writerows(rows)
-                    
-                    self.load_report_for_date()
-                    edit_window.destroy()
-                    messagebox.showinfo("Éxito", "Movimiento actualizado correctamente")
-                else:
-                     messagebox.showerror("Error", "No se encontró el registro original para actualizar", parent=edit_window)
+                self.store.update_cash_movement(
+                    movement_id, new_type, new_amount, new_concept
+                )
+                self.load_report_for_date()
+                edit_window.destroy()
+                messagebox.showinfo("Éxito", "Movimiento actualizado correctamente")
 
             except ValueError:
                 messagebox.showerror("Error", "Monto inválido", parent=edit_window)
@@ -932,7 +850,7 @@ class ReportsApp(tk.Tk):
 
         item = self.cash_flow_tree.item(selected[0])
         values = item["values"]
-        original_iso_time = item["tags"][0] if item["tags"] else None
+        movement_id = int(item["tags"][0]) if item["tags"] else None
 
         # Custom Spanish Confirmation Dialog
         confirm_dialog = tk.Toplevel(self)
@@ -981,40 +899,13 @@ class ReportsApp(tk.Tk):
 
         if self.confirm_res:
             try:
-                rows = []
-                deleted = False
-                file_path = os.path.join(self.base_dir, "flujo_caja.csv")
-
-                with open(file_path, "r", encoding="utf-8") as f:
-                    reader = csv.DictReader(f)
-                    fieldnames = reader.fieldnames
-                    for row in reader:
-                        match = False
-                        if original_iso_time:
-                            if row["fecha_hora"] == original_iso_time:
-                                match = True
-                        else:
-                            row_display_time = datetime.fromisoformat(row["fecha_hora"]).strftime("%Y-%m-%d %H:%M:%S")
-                            if row_display_time == values[0] and row["tipo"] == values[1]:
-                                match = True
-
-                        if match and not deleted:
-                            deleted = True
-                            continue # Skip this row to delete it
-                        
-                        rows.append(row)
-
-                if deleted:
-                    with open(file_path, "w", newline="", encoding="utf-8") as f:
-                        writer = csv.DictWriter(f, fieldnames=fieldnames)
-                        writer.writeheader()
-                        writer.writerows(rows)
-                    
-                    self.load_report_for_date()
-                    messagebox.showinfo("Éxito", "Movimiento borrado correctamente")
-                else:
-                    messagebox.showerror("Error", "No se encontró el registro para borrar")
-
+                if movement_id is None:
+                    raise ValueError(
+                        "No se encontró el registro para borrar"
+                    )
+                self.store.delete_cash_movement(movement_id)
+                self.load_report_for_date()
+                messagebox.showinfo("Éxito", "Movimiento borrado correctamente")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al borrar: {e}")
 
@@ -1022,6 +913,7 @@ class ReportsApp(tk.Tk):
 
     def exit_app(self):
         """Exit the application."""
+        self.store.close()
         self.destroy()
 
 
