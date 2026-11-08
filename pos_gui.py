@@ -285,8 +285,8 @@ class POS_GUI(tk.Tk):
         self.bind("<F2>", lambda event: self.product_combobox.focus_set())
         # Bind F3 to open settings window
         self.bind("<F3>", lambda event: self.open_settings_window())
-        # Bind F4 to open products window
-        self.bind("<F4>", lambda event: self.open_products_window())
+        # Bind F4 to open the payment window (keyboard shortcut)
+        self.bind("<F4>", lambda event: self.show_payment_window())
         # Bind F5 to open reports window (only for admin)
         if self.user_role == "admin":
             self.bind("<F5>", lambda event: self.open_reports_window())
@@ -337,7 +337,7 @@ class POS_GUI(tk.Tk):
             ).pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
-            button_frame, text="F4 - Productos", command=self.open_products_window
+            button_frame, text="Productos", command=self.open_products_window
         ).pack(side=tk.LEFT, padx=5)
 
         # Only show Reports button for admin
