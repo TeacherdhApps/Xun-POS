@@ -201,6 +201,14 @@ python3 -m venv .venv
 .venv/bin/python -m pytest
 ```
 
+## Empaquetado (.deb)
+
+```bash
+bash packaging/build.sh
+```
+
+Genera `dist/xun-pos_1.1.0_all.deb` con los archivos del proyecto y el icono.
+
 ## Actualización del Sistema
 
 Para conservar los datos al actualizar:
