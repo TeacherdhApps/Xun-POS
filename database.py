@@ -13,7 +13,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 APP_DIR_NAME = "xun-pos"
 DB_FILE_NAME = "xun.db"
 
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
     producto_id              INTEGER REFERENCES products(id),
     codigo                   TEXT NOT NULL,
     nombre                   TEXT NOT NULL,
-    cantidad                 INTEGER NOT NULL CHECK (cantidad > 0),
+    cantidad                 REAL NOT NULL CHECK (cantidad > 0),
     precio_unitario_centavos INTEGER NOT NULL CHECK (precio_unitario_centavos >= 0),
     total_centavos           INTEGER NOT NULL CHECK (total_centavos >= 0)
 );
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
 CREATE TABLE IF NOT EXISTS cash_movements (
     id             INTEGER PRIMARY KEY,
     fecha_hora     TEXT NOT NULL,
-    tipo           TEXT NOT NULL CHECK (tipo IN ('entrada', 'salida')),
+    tipo           TEXT NOT NULL CHECK (tipo IN ('entrada', 'salida', 'venta')),
     monto_centavos INTEGER NOT NULL CHECK (monto_centavos > 0),
     concepto       TEXT NOT NULL,
     usuario_id     INTEGER REFERENCES users(id)
@@ -104,9 +104,52 @@ def connect(db_path: str | os.PathLike | None = None) -> sqlite3.Connection:
     return conn
 
 
+MIGRATION_1_TO_2 = """
+ALTER TABLE sale_items RENAME TO sale_items_v1;
+CREATE TABLE sale_items (
+    id                       INTEGER PRIMARY KEY,
+    venta_id                 INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+    producto_id              INTEGER REFERENCES products(id),
+    codigo                   TEXT NOT NULL,
+    nombre                   TEXT NOT NULL,
+    cantidad                 REAL NOT NULL CHECK (cantidad > 0),
+    precio_unitario_centavos INTEGER NOT NULL CHECK (precio_unitario_centavos >= 0),
+    total_centavos           INTEGER NOT NULL CHECK (total_centavos >= 0)
+);
+INSERT INTO sale_items
+    (id, venta_id, producto_id, codigo, nombre, cantidad,
+     precio_unitario_centavos, total_centavos)
+SELECT id, venta_id, producto_id, codigo, nombre, cantidad,
+       precio_unitario_centavos, total_centavos
+FROM sale_items_v1;
+DROP TABLE sale_items_v1;
+
+ALTER TABLE cash_movements RENAME TO cash_movements_v1;
+CREATE TABLE cash_movements (
+    id             INTEGER PRIMARY KEY,
+    fecha_hora     TEXT NOT NULL,
+    tipo           TEXT NOT NULL CHECK (tipo IN ('entrada', 'salida', 'venta')),
+    monto_centavos INTEGER NOT NULL CHECK (monto_centavos > 0),
+    concepto       TEXT NOT NULL,
+    usuario_id     INTEGER REFERENCES users(id)
+);
+INSERT INTO cash_movements
+    (id, fecha_hora, tipo, monto_centavos, concepto, usuario_id)
+SELECT id, fecha_hora, tipo, monto_centavos, concepto, usuario_id
+FROM cash_movements_v1;
+DROP TABLE cash_movements_v1;
+"""
+
+
 def init_db(conn: sqlite3.Connection) -> int:
-    """Create the schema if needed and return its version."""
-    conn.executescript(SCHEMA)
+    """Create or upgrade the schema and return its version."""
+    version = schema_version(conn)
+    if version == 0:
+        conn.executescript(SCHEMA)
+    elif version < SCHEMA_VERSION:
+        if version < 2:
+            conn.executescript(MIGRATION_1_TO_2)
+        conn.executescript(SCHEMA)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return SCHEMA_VERSION
 
