@@ -18,12 +18,23 @@ pip install -r requirements.txt
 python3 login.py
 ```
 
-### Credenciales por Defecto
+En el primer arranque se elige el modo de uso:
 
-- **Usuario:** `admin`
-- **Contraseña:** `password`
+| Modo | Login | Datos |
+|------|-------|-------|
+| Producción | Usuarios reales con contraseña | `~/.local/share/xun-pos/` |
+| Kiosco | Sin login; selección de cajero | Igual que producción |
+| Demo | `admin` / `password` | `~/.local/share/xun-pos/demo/` |
 
-**Nota:** Cambie la contraseña después del primer inicio de sesión.
+Para una demostración sin cambiar el modo guardado:
+
+```bash
+python3 login.py --demo
+```
+
+El modo se guarda en `~/.config/xun-pos/config.json`. El usuario
+`admin`/`password` **solo existe en modo demo**; en producción se crea un
+administrador con contraseña propia en el primer arranque.
 
 ## Requisitos
 
@@ -164,10 +175,29 @@ sudo dnf install python3-tkinter
 - La interfaz está completamente en español
 - Los movimientos de flujo de caja se registran automáticamente con cada venta
 
+## Migración a SQLite (en curso)
+
+`database.py` crea el esquema SQLite v2 en `~/.local/share/xun-pos/xun.db`.
+Para migrar los CSV existentes, con backup y verificación de totales:
+
+```bash
+python3 scripts/migrate_csv.py --source ~/.local/share/xun-pos --dry-run
+python3 scripts/migrate_csv.py --source ~/.local/share/xun-pos
+```
+
+## Pruebas
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install pytest
+.venv/bin/python -m pytest
+```
+
 ## Actualización del Sistema
 
 Para conservar los datos al actualizar:
-1. Realice una copia de seguridad de los archivos .csv, .credentials y settings.json
+1. Realice una copia de seguridad de `~/.local/share/xun-pos/`
+   (incluye `.credentials`, los CSV y las bases de datos)
 2. Actualice los archivos .py
 3. Restaure los datos guardados
 
