@@ -200,12 +200,35 @@ class POS_GUI(tk.Tk):
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo actualizar el inventario: {e}")
 
+    def _ensure_products_file(self, filepath):
+        """Create productos.csv from the example file, or with headers only."""
+        example = filepath.with_name("productos.ejemplo.csv")
+        try:
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            if example.exists():
+                with open(example, "r", encoding="utf-8") as src, open(
+                    filepath, "w", encoding="utf-8", newline=""
+                ) as dst:
+                    dst.write(src.read())
+            else:
+                with open(filepath, "w", newline="", encoding="utf-8") as dst:
+                    csv.writer(dst).writerow(
+                        ["codigo", "nombre", "precio", "inventario"]
+                    )
+            messagebox.showinfo(
+                "Primer arranque",
+                f"Se creó '{filepath.name}' con datos de ejemplo.",
+            )
+        except OSError as e:
+            messagebox.showerror("Error", f"No se pudo crear '{filepath}': {e}")
+
     def load_products(self):
-        """Load products from CSV file."""
+        """Load products from CSV file, seeding it on first run."""
         products = {}
         filepath = Path(os.path.join(self.base_dir, "productos.csv"))
         if not filepath.exists():
-            messagebox.showerror("Error", f"Archivo '{filepath}' no encontrado.")
+            self._ensure_products_file(filepath)
+        if not filepath.exists():
             self.destroy()
             return products
 

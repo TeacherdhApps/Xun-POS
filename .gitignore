@@ -1,2 +1,19 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Datos locales y credenciales (nunca versionar)
+.credentials
+productos.csv
+ventas.csv
+flujo_caja.csv
+settings.json
+*.db
+*.db-wal
+*.db-shm
+backups/
+*.bak

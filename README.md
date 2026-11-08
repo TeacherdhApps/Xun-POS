@@ -63,13 +63,20 @@ Xun-POS/
 ├── products_gui.py    # Gestión de productos
 ├── reports_gui.py     # Reportes
 ├── settings_gui.py    # Configuración
-├── productos.csv      # Base de datos de productos
-├── ventas.csv         # Registro de ventas
-├── flujo_caja.csv     # Registros de flujo de caja
-├── .credentials       # Usuarios y contraseñas
-├── settings.json      # Configuración del establecimiento
+├── productos.csv      # Base de datos de productos (local, no versionado)
+├── ventas.csv         # Registro de ventas (local, no versionado)
+├── flujo_caja.csv     # Registros de flujo de caja (local, no versionado)
+├── .credentials       # Usuarios y contraseñas (local, no versionado)
+├── settings.json      # Configuración del establecimiento (local, no versionado)
+├── productos.ejemplo.csv  # Datos de ejemplo para el primer arranque
+├── settings.ejemplo.json  # Configuración de ejemplo
+├── database.py        # Esquema y conexión SQLite (migración en curso)
 └── install.sh         # Script de instalación
 ```
+
+> Los archivos con datos reales (`.credentials`, `productos.csv`, `ventas.csv`,
+> `flujo_caja.csv`, `settings.json` y `*.db`) se crean en tu equipo y están
+> excluidos por `.gitignore`. Nunca los subas al repositorio.
 
 ## Gestión de Usuarios (Solo Administrador)
 
