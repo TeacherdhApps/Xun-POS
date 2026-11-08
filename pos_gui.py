@@ -340,6 +340,13 @@ class POS_GUI(tk.Tk):
             button_frame, text="Productos", command=self.open_products_window
         ).pack(side=tk.LEFT, padx=5)
 
+        if self.user_role == "admin":
+            ttk.Button(
+                button_frame,
+                text="Cierre de Caja",
+                command=self.open_cash_closure,
+            ).pack(side=tk.LEFT, padx=5)
+
         # Only show Reports button for admin
         if self.user_role == "admin":
             ttk.Button(
@@ -557,6 +564,10 @@ class POS_GUI(tk.Tk):
         script_path = os.path.join(self.app_dir, "reports_gui.py")
         if os.path.exists(script_path):
             subprocess.Popen([sys.executable, script_path])
+
+    def open_cash_closure(self):
+        """Open the cash closure window."""
+        CashClosureWindow(self)
 
     def open_general_product_window(self):
         """Open window to add a general product."""
@@ -1431,6 +1442,86 @@ class EntryExitWindow(tk.Toplevel):
         # Close window FIRST, then show message (or just close for faster workflow)
         self.destroy()
         messagebox.showinfo("Éxito", "Transacción registrada.")
+
+
+class CashClosureWindow(tk.Toplevel):
+    """Cash closure: sales, cash movements and difference for the day."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.title("Cierre de Caja")
+        self.geometry("480x420")
+        self.resizable(False, False)
+        self.configure(bg="#f0f0f0")
+        self.transient(parent)
+        self.grab_set()
+
+        frame = ttk.Frame(self, padding=20)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text="Cierre de Caja", font=("Arial", 16, "bold")).pack(
+            pady=10
+        )
+        self.sales_label = ttk.Label(frame, text="Ventas: $0.00", font=("Arial", 12))
+        self.sales_label.pack()
+        self.entries_label = ttk.Label(frame, text="Entradas: $0.00", font=("Arial", 12))
+        self.entries_label.pack()
+        self.exits_label = ttk.Label(frame, text="Salidas: $0.00", font=("Arial", 12))
+        self.exits_label.pack()
+        self.net_label = ttk.Label(
+            frame, text="Neto esperado: $0.00", font=("Arial", 12, "bold")
+        )
+        self.net_label.pack()
+
+        ttk.Label(frame, text="Efectivo actual ($):", font=("Arial", 12)).pack(
+            pady=10
+        )
+        self.amount_var = tk.DoubleVar(value=0.0)
+        amount_entry = ttk.Entry(frame, textvariable=self.amount_var, font=("Arial", 12))
+        amount_entry.pack()
+
+        ttk.Button(frame, text="Cerrar Caja", command=self._close).pack(pady=20)
+
+        self._load_totals()
+
+    def _load_totals(self):
+        today = datetime.now().date()
+        sales = self.parent.store.sales_between(today, today)
+        total_sales = sum(int(s["total_centavos"]) for s in sales) / 100
+        cash = self.parent.store.cash_movements_between(today, today)
+        entries = sum(
+            int(m["monto_centavos"]) for m in cash if m["tipo"] == "entrada"
+        ) / 100
+        exits = sum(
+            int(m["monto_centavos"]) for m in cash if m["tipo"] == "salida"
+        ) / 100
+        net = entries - exits - total_sales
+
+        self.sales_total = total_sales
+        self.entries_total = entries
+        self.exits_total = exits
+        self.net_total = net
+
+        self.sales_label.config(text=f"Ventas: ${total_sales:.2f}")
+        self.entries_label.config(text=f"Entradas: ${entries:.2f}")
+        self.exits_label.config(text=f"Salidas: ${exits:.2f}")
+        self.net_label.config(text=f"Neto esperado: ${net:.2f}")
+
+    def _close(self):
+        actual = float(self.amount_var.get() or 0)
+        difference = actual - self.net_total
+        messagebox.showinfo(
+            "Cierre de Caja",
+            "Cierre registrado.\n"
+            f"Ventas: ${self.sales_total:.2f}\n"
+            f"Entradas: ${self.entries_total:.2f}\n"
+            f"Salidas: ${self.exits_total:.2f}\n"
+            f"Neto esperado: ${self.net_total:.2f}\n"
+            f"Efectivo actual: ${actual:.2f}\n"
+            f"Diferencia: ${difference:.2f}",
+        )
+        self.destroy()
 
 
 if __name__ == "__main__":
