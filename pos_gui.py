@@ -281,6 +281,8 @@ class POS_GUI(tk.Tk):
 
         # Bind F1 to show payment window
         self.bind("<F1>", lambda event: self.show_payment_window())
+        # Bind F2 to focus the product search (keyboard shortcut)
+        self.bind("<F2>", lambda event: self.product_combobox.focus_set())
         # Bind F3 to open settings window
         self.bind("<F3>", lambda event: self.open_settings_window())
         # Bind F4 to open products window
@@ -288,6 +290,8 @@ class POS_GUI(tk.Tk):
         # Bind F5 to open reports window (only for admin)
         if self.user_role == "admin":
             self.bind("<F5>", lambda event: self.open_reports_window())
+        # Bind F8 to close the current sale
+        self.bind("<F8>", lambda event: self._quick_close_sale())
         # Bind F12 to exit application
         self.bind("<F12>", lambda event: self.destroy())
         # Bind Tab to focus next widget
@@ -390,6 +394,14 @@ class POS_GUI(tk.Tk):
         self.product_combobox.set('')
         self.product_combobox['values'] = []
         self.product_combobox.focus()
+
+    def _quick_close_sale(self):
+        """Close (clear) the current sale through the F8 shortcut."""
+        if not self.sale_items:
+            return
+        if not messagebox.askyesno("Cierre", "¿Cerrar la venta actual?"):
+            return
+        self.clear_sale()
 
     def _create_top_frame(self, parent):
         """Create the top frame for product entry."""
