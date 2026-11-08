@@ -6,8 +6,10 @@ import os
 import platform
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 import config
+import database
 import security
 import store
 
@@ -63,30 +65,15 @@ if platform.system() == "Windows":
 class UserManager:
     """Manages user authentication and authorization with secure hashing."""
 
-    def __init__(self, credentials_file=None):
-        self.credentials_file = credentials_file or config.credentials_path()
-        self.ensure_credentials_file()
-
-    def ensure_credentials_file(self):
-        """Create the credentials file with permissions 0600."""
-        if not os.path.exists(self.credentials_file):
-            directory = os.path.dirname(os.path.abspath(self.credentials_file))
-            os.makedirs(directory, exist_ok=True)
-            with open(self.credentials_file, "a", encoding="utf-8"):
-                pass
-            try:
-                os.chmod(self.credentials_file, 0o600)
-            except OSError:
-                pass
+    def __init__(self, store):
+        self.store = store
 
     def hash_password(self, password, salt=None):
         """Hash a password using pbkdf2_hmac."""
         if salt is None:
             salt = os.urandom(16)
-        else:
-            if isinstance(salt, str):
-                salt = bytes.fromhex(salt)
-        
+        elif isinstance(salt, str):
+            salt = bytes.fromhex(salt)
         return security.hash_password(password, salt)
 
     def verify_password(self, stored_password, provided_password):
@@ -94,93 +81,86 @@ class UserManager:
         return security.verify_password(stored_password, provided_password)
 
     def load_users(self):
-        """Load all users from the credentials file."""
-        users = {}
-        try:
-            with open(self.credentials_file, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    parts = line.split(":")
-                    if len(parts) == 3:
-                        username, password_data, role = parts
-                        users[username] = {
-                            "password": password_data,
-                            "role": role,
-                        }
-        except FileNotFoundError:
-            pass
-        return users
-
-    def save_users(self, users):
-        """Save users atomically with permissions 0600."""
-        directory = os.path.dirname(os.path.abspath(self.credentials_file))
-        os.makedirs(directory, exist_ok=True)
-        tmp_path = f"{self.credentials_file}.tmp"
-        fd = os.open(
-            tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
-        )
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            for username, data in users.items():
-                f.write(f"{username}:{data['password']}:{data['role']}\n")
-        os.replace(tmp_path, self.credentials_file)
-        try:
-            os.chmod(self.credentials_file, 0o600)
-        except OSError:
-            pass
+        """Load the active users from the database."""
+        rows = self.store.conn.execute(
+            "SELECT username, password_hash, role FROM users"
+            " WHERE activo = 1"
+        ).fetchall()
+        return {
+            row["username"]: {
+                "password": row["password_hash"],
+                "role": row["role"],
+            }
+            for row in rows
+        }
 
     def authenticate(self, username, password):
         """Authenticate a user and return their role if successful."""
-        users = self.load_users()
-        if username in users:
-            stored_password = users[username]["password"]
-            if self.verify_password(stored_password, password):
-                if security.needs_rehash(stored_password):
-                    print(
-                        f"Actualizando el hash de '{username}' a PBKDF2-600k..."
-                    )
-                    users[username]["password"] = self.hash_password(password)
-                    self.save_users(users)
-                return users[username]["role"]
-        return None
+        row = self.store.conn.execute(
+            "SELECT username, password_hash, role, activo FROM users"
+            " WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if row is None or row["activo"] != 1:
+            return None
+        if not self.verify_password(row["password_hash"], password):
+            return None
+        if security.needs_rehash(row["password_hash"]):
+            with database.transaction(self.store.conn):
+                self.store.conn.execute(
+                    "UPDATE users SET password_hash = ? WHERE username = ?",
+                    (self.hash_password(password), username),
+                )
+        return row["role"]
 
     def create_user(self, username, password, role, save_now=False):
-        """Create a new user."""
-        users = self.load_users()
-        if username in users:
-            return False, "El usuario ya existe."
+        """Create a new user in the database."""
+        with database.transaction(self.store.conn):
+            if self.store.conn.execute(
+                "SELECT 1 FROM users WHERE username = ?", (username,)
+            ).fetchone():
+                return False, "El usuario ya existe."
 
-        if role not in ["admin", "cashier"]:
-            return False, "Rol inválido. Debe ser 'admin' o 'cashier'."
+            if role not in ("admin", "cashier"):
+                return False, "Rol inválido. Debe ser 'admin' o 'cashier'."
 
-        # Hash the password before saving
-        hashed_password = self.hash_password(password)
-        users[username] = {"password": hashed_password, "role": role}
-        
-        if save_now:
-            self.save_users(users)
-        else:
-            # If not saving immediately, we still update the dict, 
-            # but usually this method is called when we want to persist.
-            self.save_users(users)
-            
+            self.store.conn.execute(
+                "INSERT INTO users"
+                " (username, password_hash, role, activo, creado_en)"
+                " VALUES (?, ?, ?, 1, ?)",
+                (
+                    username,
+                    self.hash_password(password),
+                    role,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
         return True, "Usuario creado exitosamente."
 
     def delete_user(self, username):
-        """Delete a user."""
+        """Delete a user by marking it inactive."""
         users = self.load_users()
         if username not in users:
             return False, "Usuario no encontrado."
 
         if (
             username == "admin"
-            and len([u for u in users if users[u]["role"] == "admin"]) == 1
+            and len(
+                [
+                    user
+                    for user in users.values()
+                    if user["role"] == "admin"
+                ]
+            )
+            == 1
         ):
             return False, "No se puede eliminar el último usuario administrador."
 
-        del users[username]
-        self.save_users(users)
+        with database.transaction(self.store.conn):
+            self.store.conn.execute(
+                "UPDATE users SET activo = 0 WHERE username = ?",
+                (username,),
+            )
         return True, "Usuario eliminado exitosamente."
 
     def change_password(self, username, new_password):
@@ -189,14 +169,17 @@ class UserManager:
         if username not in users:
             return False, "Usuario no encontrado."
 
-        users[username]["password"] = self.hash_password(new_password)
-        self.save_users(users)
+        with database.transaction(self.store.conn):
+            self.store.conn.execute(
+                "UPDATE users SET password_hash = ?"
+                " WHERE username = ? AND activo = 1",
+                (self.hash_password(new_password), username),
+            )
         return True, "Contraseña cambiada exitosamente."
 
     def list_users(self):
-        """List all users."""
-        users = self.load_users()
-        return users
+        """List all active users."""
+        return self.load_users()
 
 
 class LoginSystem:
@@ -227,15 +210,14 @@ class LoginSystem:
                 )
 
         try:
-            store.Store(mode=self.mode).close()
+            self.store = store.Store(mode=self.mode)
+            self.user_manager = UserManager(self.store)
         except Exception as exc:
             print(
                 f"\n{Colors.RED}No se pudieron preparar los datos: "
                 f"{exc}{Colors.RESET}"
             )
             raise
-
-        self.user_manager = UserManager(config.credentials_path(self.mode))
 
         if self.mode == "demo":
             if not self.user_manager.list_users():
