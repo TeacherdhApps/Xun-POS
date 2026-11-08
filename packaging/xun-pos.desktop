@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Xun-POS
+GenericName=Punto de Venta
+Comment=Sistema de Punto de Venta rápido y ligero para Linux
+Exec=xun-pos
+Icon=xun-pos
+Terminal=false
+Categories=Office;PointOfSale;Sales;
+Keywords=pos;ventas;tienda;caja;punto de venta;
+StartupNotify=true
