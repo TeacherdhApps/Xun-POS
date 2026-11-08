@@ -12,6 +12,7 @@ import config
 import database
 import security
 import store
+import auto_backup
 
 
 # ANSI Color codes for terminal
@@ -745,7 +746,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         app = LoginSystem(mode=args.mode, demo_override=args.demo)
+        auto_backup.start()
         app.run()
+        auto_backup.stop()
     except KeyboardInterrupt:
         print("\n\n¡Adiós!")
     return 0
