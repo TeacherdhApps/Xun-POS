@@ -5,6 +5,7 @@ Product Management System
 A POS application for Unix-based systems
 """
 
+import config
 import csv
 import fcntl
 import os
@@ -33,7 +34,9 @@ class ProductsApp(tk.Tk):
         self.is_fullscreen = False
         
         # Base directory for absolute paths
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.base_dir = str(config.ensure_data_dir())
+        if config.get_mode() == "demo":
+            self.title(self.title() + " [DEMO]")
 
         # Data Management
         self.all_products = []  # List of dictionaries: {'codigo':, 'nombre':, 'precio':, 'inventario':}

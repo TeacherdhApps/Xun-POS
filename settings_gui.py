@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import config
 import json
 import os
 import platform
@@ -27,7 +28,9 @@ class SettingsApp(tk.Tk):
         self.is_fullscreen = False  # Track fullscreen state
         
         # Base directory for absolute paths
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.base_dir = str(config.ensure_data_dir())
+        if config.get_mode() == "demo":
+            self.title(self.title() + " [DEMO]")
         self.settings_file = os.path.join(self.base_dir, "settings.json")
 
         self.create_styles()

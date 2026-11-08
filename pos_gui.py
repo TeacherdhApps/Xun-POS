@@ -1,4 +1,5 @@
 import base64
+import config
 import csv
 import fcntl
 import json
@@ -40,7 +41,9 @@ class POS_GUI(tk.Tk):
         self.is_fullscreen = False  # Track fullscreen state
         
         # Base directory for absolute paths
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.base_dir = str(config.ensure_data_dir())
+        if config.get_mode() == "demo":
+            self.title(self.title() + " [DEMO]")
 
         self.settings = self.load_settings()
         self.products = self.load_products()
