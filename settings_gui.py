@@ -4,7 +4,8 @@ import platform
 import store
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
+import customtkinter as ctk
 
 # Prevent execution on Windows OS
 if platform.system() == "Windows":
@@ -17,74 +18,28 @@ if platform.system() == "Windows":
     print("=" * 60)
     sys.exit(1)
 
+# Palette
+ACCENT_COLOR = "#007BFF"
+SUCCESS_COLOR = "#28A745"
+DANGER_COLOR = "#DC3545"
 
-class SettingsApp(tk.Tk):
+
+class SettingsApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Configuración de Tienda")
         self.geometry("800x600")
         self.is_fullscreen = False  # Track fullscreen state
-        
+
         self.store = store.Store()
         if config.get_mode() == "demo":
             self.title(self.title() + " [DEMO]")
 
-        self.create_styles()
         self.create_widgets()
         self.load_settings()
 
         # Bind F11 for fullscreen toggle
         self.bind("<F11>", self.toggle_fullscreen)
-
-    def create_styles(self):
-        """Configure ttk styles."""
-        style = ttk.Style(self)
-        style.theme_use("clam")
-
-        # Palette
-        BG_COLOR = "#F0F0F0"
-        TEXT_COLOR = "#212529"
-        ACCENT_COLOR = "#007BFF"
-        SUCCESS_COLOR = "#28A745"
-        DANGER_COLOR = "#DC3545"
-        WHITE = "#FFFFFF"
-        BLACK = "#1A1A1A"
-
-        # General styles
-        self.configure(bg=BG_COLOR)
-        style.configure("TFrame", background=BG_COLOR)
-        style.configure(
-            "TLabel",
-            background=BG_COLOR,
-            foreground=TEXT_COLOR,
-            font=("Arial", 16, "bold"),
-        )
-        style.configure("TButton", font=("Arial", 12, "bold"), padding=10)
-        style.map(
-            "TButton",
-            background=[("active", "#EAEAEA")],
-            foreground=[("active", BLACK)],
-        )
-        style.configure(
-            "TEntry", font=("Arial", 18), fieldbackground=WHITE, foreground=TEXT_COLOR
-        )
-
-        # Custom Button styles
-        style.configure("Blue.TButton", foreground=WHITE, background=ACCENT_COLOR)
-        style.map("Blue.TButton", background=[("active", "#0056b3")])
-
-        style.configure("Red.TButton", foreground=WHITE, background=DANGER_COLOR)
-        style.map("Red.TButton", background=[("active", "#bd2130")])
-
-        style.configure("Green.TButton", foreground=WHITE, background=SUCCESS_COLOR)
-        style.map("Green.TButton", background=[("active", "#218838")])
-
-        style.configure("Black.TButton", foreground=WHITE, background="#000000")
-        style.map("Black.TButton", background=[("active", "#333333")])
-
-        # Small Accent style for the "Seleccionar..." button
-        style.configure("SmallAccent.TButton", font=("Arial", 10, "bold"), padding=5, foreground=WHITE, background=ACCENT_COLOR)
-        style.map("SmallAccent.TButton", background=[("active", "#0056b3")])
 
     def toggle_fullscreen(self, event=None):
         """Toggle fullscreen mode with F11."""
@@ -94,24 +49,23 @@ class SettingsApp(tk.Tk):
 
     def create_widgets(self):
         # Title
-        title_frame = ttk.Frame(self, padding="10")
-        title_frame.pack(fill=tk.X)
-        
-        # Header Info Label
-        info_label = ttk.Label(
+        title_frame = ctk.CTkFrame(self, fg_color="transparent")
+        title_frame.pack(fill=tk.X, pady=(10, 5))
+
+        info_label = ctk.CTkLabel(
             title_frame,
             text="@Xun-POS",
             font=("Arial", 8),
-            foreground="#666666",
+            text_color="#666666",
         )
         info_label.pack(side=tk.RIGHT, anchor=tk.NE)
 
-        ttk.Label(
+        ctk.CTkLabel(
             title_frame, text="Configuración de Tienda", font=("Arial", 24, "bold")
         ).pack(side=tk.LEFT, padx=10, pady=10)
 
-        main_frame = ttk.Frame(self, padding="30")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=10)
 
         # Entry fields
         fields = {
@@ -126,36 +80,39 @@ class SettingsApp(tk.Tk):
         vcmd = (self.register(self.validate_phone), "%P")
 
         for i, (key, text) in enumerate(fields.items()):
-            label = ttk.Label(main_frame, text=text, font=("Arial", 16, "bold"))
+            label = ctk.CTkLabel(main_frame, text=text, font=("Arial", 16, "bold"))
             label.grid(row=i, column=0, sticky="w", padx=10, pady=15)
 
             if key == "logo_path":
-                self.logo_frame = ttk.Frame(main_frame)
+                self.logo_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
                 self.logo_frame.grid(row=i, column=1, sticky="ew", padx=10, pady=15)
-                self.entries[key] = ttk.Label(
+                self.entries[key] = ctk.CTkLabel(
                     self.logo_frame,
                     text="No seleccionado",
                     anchor="w",
                     font=("Arial", 14),
                 )
                 self.entries[key].pack(side=tk.LEFT, expand=True, fill=tk.X)
-                logo_button = ttk.Button(
+                logo_button = ctk.CTkButton(
                     self.logo_frame,
                     text="Seleccionar...",
                     command=self.select_logo,
-                    style="SmallAccent.TButton",
+                    fg_color=ACCENT_COLOR,
+                    hover_color="#0056b3",
+                    font=("Arial", 12, "bold"),
+                    width=120,
                 )
                 logo_button.pack(side=tk.RIGHT)
             else:
-                self.entries[key] = ttk.Entry(main_frame, font=("Arial", 18))
+                self.entries[key] = ctk.CTkEntry(main_frame, font=("Arial", 14))
                 if key == "phone":
-                    self.entries[key].config(validate="key", validatecommand=vcmd)
+                    self.entries[key].configure(validate="key", validatecommand=vcmd)
                 self.entries[key].grid(row=i, column=1, sticky="ew", padx=10, pady=15)
 
         main_frame.columnconfigure(1, weight=1)
 
         # Buttons frame
-        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         buttons_frame.grid(row=len(fields), column=0, columnspan=2, pady=30)
         buttons_frame.columnconfigure(0, weight=1)
         buttons_frame.columnconfigure(1, weight=1)
@@ -163,38 +120,46 @@ class SettingsApp(tk.Tk):
         buttons_frame.columnconfigure(3, weight=1)
 
         # Save button
-        save_button = ttk.Button(
+        save_button = ctk.CTkButton(
             buttons_frame,
             text="Guardar",
             command=self.save_settings,
-            style="Blue.TButton",
+            fg_color=ACCENT_COLOR,
+            hover_color="#0056b3",
+            font=("Arial", 14, "bold"),
         )
         save_button.grid(row=0, column=0, padx=5, sticky="ew")
 
         # Export button
-        export_button = ttk.Button(
+        export_button = ctk.CTkButton(
             buttons_frame,
             text="Exportar",
             command=self.export_data,
-            style="Red.TButton",
+            fg_color=DANGER_COLOR,
+            hover_color="#bd2130",
+            font=("Arial", 14, "bold"),
         )
         export_button.grid(row=0, column=1, padx=5, sticky="ew")
 
         # Import button
-        import_button = ttk.Button(
+        import_button = ctk.CTkButton(
             buttons_frame,
             text="Importar",
             command=self.import_data,
-            style="Green.TButton",
+            fg_color=SUCCESS_COLOR,
+            hover_color="#218838",
+            font=("Arial", 14, "bold"),
         )
         import_button.grid(row=0, column=2, padx=5, sticky="ew")
 
         # Exit button with F12
-        exit_button = ttk.Button(
+        exit_button = ctk.CTkButton(
             buttons_frame,
             text="F12 - Salir",
             command=self.exit_app,
-            style="Black.TButton",
+            fg_color="#000000",
+            hover_color="#333333",
+            font=("Arial", 14, "bold"),
         )
         exit_button.grid(row=0, column=3, padx=5, sticky="ew")
 
@@ -218,7 +183,7 @@ class SettingsApp(tk.Tk):
             ),
         )
         if file_path:
-            self.entries["logo_path"].config(text=file_path)
+            self.entries["logo_path"].configure(text=file_path)
 
     def export_data(self):
         """Export the database to a zip file."""
@@ -244,7 +209,7 @@ class SettingsApp(tk.Tk):
             filetypes=[("Zip files", "*.zip")],
             title="Seleccionar archivo de datos para importar"
         )
-        
+
         if not import_path:
             return
 
@@ -252,7 +217,7 @@ class SettingsApp(tk.Tk):
             "Confirmar Importación",
             "Esta acción reemplazará los datos actuales (productos, ventas, ajustes). ¿Desea continuar?"
         )
-        
+
         if not confirm:
             return
 
@@ -277,18 +242,18 @@ class SettingsApp(tk.Tk):
 
         for key, widget in self.entries.items():
             if key in settings:
-                if isinstance(widget, ttk.Entry):
+                if isinstance(widget, ctk.CTkEntry):
                     widget.delete(0, tk.END)
                     widget.insert(0, settings[key])
-                elif isinstance(widget, ttk.Label):
-                    widget.config(text=settings[key] or "No seleccionado")
+                elif isinstance(widget, ctk.CTkLabel):
+                    widget.configure(text=settings[key] or "No seleccionado")
 
     def save_settings(self):
         settings = {}
         for key, widget in self.entries.items():
-            if isinstance(widget, ttk.Entry):
+            if isinstance(widget, ctk.CTkEntry):
                 settings[key] = widget.get()
-            elif isinstance(widget, ttk.Label):
+            elif isinstance(widget, ctk.CTkLabel):
                 settings[key] = widget.cget("text")
 
         try:
