@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
-import base64
+import argparse
 import getpass
-import hashlib
-import hmac
 import os
 import platform
 import subprocess
 import sys
+
+import config
+import security
 
 
 # ANSI Color codes for terminal
@@ -61,17 +62,21 @@ if platform.system() == "Windows":
 class UserManager:
     """Manages user authentication and authorization with secure hashing."""
 
-    def __init__(self, credentials_file=".credentials"):
-        self.credentials_file = credentials_file
+    def __init__(self, credentials_file=None):
+        self.credentials_file = credentials_file or config.credentials_path()
         self.ensure_credentials_file()
 
     def ensure_credentials_file(self):
-        """Ensure the credentials file exists."""
+        """Create the credentials file with permissions 0600."""
         if not os.path.exists(self.credentials_file):
-            print(
-                f"Advertencia: {self.credentials_file} no encontrado. Creando usuario admin por defecto."
-            )
-            self.create_user("admin", "password", "admin", save_now=True)
+            directory = os.path.dirname(os.path.abspath(self.credentials_file))
+            os.makedirs(directory, exist_ok=True)
+            with open(self.credentials_file, "a", encoding="utf-8"):
+                pass
+            try:
+                os.chmod(self.credentials_file, 0o600)
+            except OSError:
+                pass
 
     def hash_password(self, password, salt=None):
         """Hash a password using pbkdf2_hmac."""
@@ -81,29 +86,11 @@ class UserManager:
             if isinstance(salt, str):
                 salt = bytes.fromhex(salt)
         
-        # 100,000 iterations of SHA256
-        pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
-        return salt.hex() + "$" + pwd_hash.hex()
+        return security.hash_password(password, salt)
 
     def verify_password(self, stored_password, provided_password):
         """Verify a stored password against a provided password."""
-        try:
-            # Check if it's an old base64 password (no '$' separator and looks like base64)
-            if "$" not in stored_password:
-                # Attempt to decode as base64 to see if it's a legacy password
-                try:
-                    decoded = base64.b64decode(stored_password).decode("utf-8")
-                    # If successful, compare plaintexts
-                    return decoded == provided_password
-                except Exception:
-                    return False
-            
-            salt_hex, hash_hex = stored_password.split("$")
-            salt = bytes.fromhex(salt_hex)
-            pwd_hash = hashlib.pbkdf2_hmac('sha256', provided_password.encode('utf-8'), salt, 100000)
-            return hmac.compare_digest(pwd_hash.hex(), hash_hex)
-        except Exception:
-            return False
+        return security.verify_password(stored_password, provided_password)
 
     def load_users(self):
         """Load all users from the credentials file."""
@@ -126,10 +113,21 @@ class UserManager:
         return users
 
     def save_users(self, users):
-        """Save all users to the credentials file."""
-        with open(self.credentials_file, "w") as f:
+        """Save users atomically with permissions 0600."""
+        directory = os.path.dirname(os.path.abspath(self.credentials_file))
+        os.makedirs(directory, exist_ok=True)
+        tmp_path = f"{self.credentials_file}.tmp"
+        fd = os.open(
+            tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             for username, data in users.items():
                 f.write(f"{username}:{data['password']}:{data['role']}\n")
+        os.replace(tmp_path, self.credentials_file)
+        try:
+            os.chmod(self.credentials_file, 0o600)
+        except OSError:
+            pass
 
     def authenticate(self, username, password):
         """Authenticate a user and return their role if successful."""
@@ -137,13 +135,12 @@ class UserManager:
         if username in users:
             stored_password = users[username]["password"]
             if self.verify_password(stored_password, password):
-                # Check if migration from legacy format is needed
-                if "$" not in stored_password:
-                    print(f"Migrando contraseña para usuario '{username}' a formato seguro...")
-                    new_hash = self.hash_password(password)
-                    users[username]["password"] = new_hash
+                if security.needs_rehash(stored_password):
+                    print(
+                        f"Actualizando el hash de '{username}' a PBKDF2-600k..."
+                    )
+                    users[username]["password"] = self.hash_password(password)
                     self.save_users(users)
-                
                 return users[username]["role"]
         return None
 
@@ -204,10 +201,97 @@ class UserManager:
 class LoginSystem:
     """Main login system with menu interface."""
 
-    def __init__(self):
-        self.user_manager = UserManager()
+    def __init__(self, mode=None, demo_override=False):
+        self.demo_override = demo_override
+        self.mode = "demo" if demo_override else (mode or config.get_mode())
+        self.user_manager = None
         self.current_user = None
         self.current_role = None
+
+    def setup(self):
+        """Resolve the mode, prepare data and users for this run."""
+        if self.mode is None:
+            self.mode = self.first_run()
+        elif not self.demo_override:
+            config.save_mode(self.mode)
+
+        if self.mode == "demo":
+            config.seed_demo_data()
+        else:
+            copied = config.copy_legacy_data(self.mode)
+            if copied:
+                print(
+                    f"\n{Colors.YELLOW}Datos migrados a "
+                    f"{config.data_dir(self.mode)}: {', '.join(copied)}{Colors.RESET}"
+                )
+
+        self.user_manager = UserManager(config.credentials_path(self.mode))
+
+        if self.mode == "demo":
+            if not self.user_manager.list_users():
+                self.user_manager.create_user(
+                    "admin", "password", "admin", save_now=True
+                )
+        elif self.mode == "production" and not self.user_manager.list_users():
+            self.ensure_admin()
+
+    def first_run(self):
+        """Ask how this machine will use Xun-POS and save the choice."""
+        self.clear_screen()
+        self.print_header("PRIMER ARRANQUE")
+        print(f"\n{Colors.WHITE}¿Cómo vas a usar este equipo?{Colors.RESET}\n")
+        self.print_menu_item("1", "Producción (usuarios y contraseñas)")
+        self.print_menu_item("2", "Kiosco (sin login, caja compartida)")
+        self.print_menu_item("3", "Demo (admin/password y datos de ejemplo)")
+        choice = input(
+            f"\n{Colors.GREEN}>{Colors.RESET} Opción (1-3): "
+        ).strip()
+        mode = {"1": "production", "2": "kiosk", "3": "demo"}.get(
+            choice, "production"
+        )
+        config.save_mode(mode)
+        print(f"\n{Colors.GREEN}Modo guardado: {mode}{Colors.RESET}")
+        return mode
+
+    def ensure_admin(self):
+        """Create the first administrator with a real password."""
+        self.clear_screen()
+        self.print_header("CREAR ADMINISTRADOR")
+        print(
+            f"\n{Colors.YELLOW}No hay usuarios todavía. "
+            f"Crea la cuenta de administrador.{Colors.RESET}\n"
+        )
+        while True:
+            username = input(
+                f"{Colors.CYAN}Usuario [admin]:{Colors.RESET} "
+            ).strip() or "admin"
+            password = getpass.getpass(
+                f"{Colors.CYAN}Contraseña:{Colors.RESET} "
+            )
+            confirm = getpass.getpass(
+                f"{Colors.CYAN}Confirmar contraseña:{Colors.RESET} "
+            )
+            if password != confirm:
+                print(f"{Colors.RED}Las contraseñas no coinciden.{Colors.RESET}")
+                continue
+            if len(password) < 8:
+                print(f"{Colors.RED}Usa al menos 8 caracteres.{Colors.RESET}")
+                continue
+            if password.lower() in {"password", "admin", "12345678"}:
+                print(
+                    f"{Colors.RED}Esa contraseña es demasiado común.{Colors.RESET}"
+                )
+                continue
+            ok, message = self.user_manager.create_user(
+                username, password, "admin"
+            )
+            if ok:
+                print(f"\n{Colors.GREEN}{message}{Colors.RESET}")
+                input(
+                    f"{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}"
+                )
+                return
+            print(f"{Colors.RED}{message}{Colors.RESET}")
 
     def clear_screen(self):
         """Clear the terminal screen."""
@@ -270,6 +354,12 @@ class LoginSystem:
         print(f"{Colors.RESET}")
         print(f"{Colors.WHITE}{'POS gratuito, rápido, ligero y para Linux.'.center(80)}{Colors.RESET}")
         print(f"{Colors.RESET}")
+
+        if self.mode == "demo":
+            print(
+                f"{Colors.BG_YELLOW}{Colors.BLACK}{Colors.BOLD} MODO DEMO {Colors.RESET} "
+                f"{Colors.YELLOW}admin / password · datos de ejemplo{Colors.RESET}"
+            )
 
         print(
             f"\n{Colors.BRIGHT_WHITE}╔════════════════════════════════════════════════════════════════════╗{Colors.RESET}"
@@ -421,10 +511,14 @@ class LoginSystem:
         try:
             print(f"\n{Colors.CYAN}Iniciando {script_name}...{Colors.RESET}")
             # Pass user role to pos_gui.py for role-based access control
+            env = os.environ.copy()
+            env[config.MODE_ENV] = self.mode
             if script_name == "pos_gui.py" and self.current_role:
-                subprocess.run([sys.executable, script_name, self.current_role])
+                subprocess.run(
+                    [sys.executable, script_name, self.current_role], env=env
+                )
             else:
-                subprocess.run([sys.executable, script_name])
+                subprocess.run([sys.executable, script_name], env=env)
         except Exception as e:
             print(f"\n{Colors.RED}Error ejecutando {script_name}: {e}{Colors.RESET}")
             input(f"\n{Colors.YELLOW}Presione Enter para continuar...{Colors.RESET}")
@@ -629,22 +723,41 @@ class LoginSystem:
 
     def run(self):
         """Main application loop."""
+        self.setup()
         while True:
-            if self.login():
-                if self.current_role == "admin":
-                    self.admin_menu()
-                elif self.current_role == "cashier":
-                    self.cashier_menu()
+            if self.mode == "kiosk":
+                self.current_user = "cajero"
+                self.current_role = "cashier"
+            elif not self.login():
+                continue
 
-                # Reset after logout
-                self.current_user = None
-                self.current_role = None
+            if self.current_role == "admin":
+                self.admin_menu()
+            elif self.current_role == "cashier":
+                self.cashier_menu()
+
+            self.current_user = None
+            self.current_role = None
 
 
-if __name__ == "__main__":
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Xun-POS")
+    parser.add_argument(
+        "--mode", choices=config.MODES, help="guardar el modo de uso"
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="usar datos de demostración solo en esta ejecución",
+    )
+    args = parser.parse_args(argv)
     try:
-        app = LoginSystem()
+        app = LoginSystem(mode=args.mode, demo_override=args.demo)
         app.run()
     except KeyboardInterrupt:
         print("\n\n¡Adiós!")
-        sys.exit(0)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
