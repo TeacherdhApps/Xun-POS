@@ -74,9 +74,6 @@ Xun-POS/
 └── install.sh         # Script de instalación
 ```
 
-> Los archivos con datos reales (`.credentials`, `productos.csv`, `ventas.csv`,
-> `flujo_caja.csv`, `settings.json` y `*.db`) se crean en tu equipo y están
-> excluidos por `.gitignore`. Nunca los subas al repositorio.
 
 ## Gestión de Usuarios (Solo Administrador)
 
